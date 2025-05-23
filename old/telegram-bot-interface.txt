@@ -1,0 +1,161 @@
+DOCUMENTATION
+
+* TELEGRAM USER IS NOT REGISTERED YET 
+* /help *
+Usage: /COMMAND
+
+Commands:
+ /register
+  — syntax: /register [username] [token]
+
+
+
+ TELEGRAM USER HAS BEEN REGISTERED 
+* /help *
+Usage: /COMMAND
+
+Management Commands
+ /set Sets a default for the current user
+ /unset  Unset a default for the current user for the given property
+
+Commands:
+ /new Create a new record
+
+Run ‘/[command] help’ for more information on a command
+
+
+* /new help *
+Usage: /new RecordType
+
+RecordTypes:
+ maker 
+  — syntax: /new maker Code Website
+  — e.g. /new maker DKNG sportsbook.draftkings.com
+   /new maker BJMP https://www.bojump.com
+
+
+ account
+  -- syntax: /new account Maker Username [Password]
+
+  — e.g. /new account DKNG batman1
+     /new account BJMP AZ123  Password=cc99
+    /new account S411 12345  xyzpass9
+
+
+ counterparty
+  — syntax: /new counterparty Name [CreditLimit]
+
+  — e.g. /new counterparty Alice     
+    /new counterparty Bob $50k  
+    /new counterparty Charlie 1000
+    /new counterparty Dan 2500 
+    /new counterparty Eric $10,000   
+
+
+ partnership Create a new EquityPartnership
+  — syntax: /new partnership Name [Counterparty={number|fraction}] …
+
+
+  — e.g. /new partnership Alice5050 Alice=50 Me=50
+              /new partnership Thirds Bob=1/3, Charlie=1/3, Me=1/3
+
+  Notes:
+   - “Me” is a reserved name, used to refer to the current user
+   - an EquityPartnership can not have the same name as a Counterparty
+
+
+ fill  Record entry of a new position-affecting fill
+  — syntax: /new fill [date] [time] [ig | yg] raw bet description Location [EquityPartnership]
+
+   
+  — e.g.
+    #1: /new fill 9/22 3:40pm oak/yankees u9-110 $1.5k dan thirds 
+    #2: /new fill baylor -11.5 2.0 DKNG|batman alice5050
+    #3: /new fill ig joe burrow total pass completions u23.5+05 $3250 eric
+
+  Notes:
+   - “yg” stands for “you got”, and indicates the WhoTurnedInType is Us
+      “ig” stands for “i got”, and indicates the WhoTurnedInType type is Them
+       it is an error to specify the WhoTurnedInType when the Location is an Account
+
+   - every Fill has the following mandatory structural elements:  
+     1) ticket details (each of these MUST be present in, or inferrable from "raw bet description")
+     a) the distinct thing which gets graded 
+      — e.g. cases:
+       #1: oak/yankees u9
+       #2: baylor -11.5 (can fail on account of being ambiguous if baylor is a school that plays both CBB and CFB and both teams have an upcoming match
+        can fix by including enough information to disambiguate, for example:
+         cbb baylor
+          football baylor 
+          139 baylor
+         637 baylor
+         (not an exhaustive list)
+       #3: joe burrow total pass completions u23.5
+     b) the size 
+      — e.g. cases:
+       #1: $1.5k
+       #2: 2.0
+       #3: $3250
+
+     c) the price
+      — e.g. cases:
+       #1: -110
+       #2: not specified: defaults to -110
+       #3: +105
+
+       2) the Location of the bet — either a Counterparty or an Account
+     — e.g. cases:
+      #1: in the first example, “dan” is parsed as a counterparty (assuming dan has been previously registered as a Counterparty using ‘/new counterparty’)
+      #2: in the second example, “DKNG|batman” is parsed as the account (‘batman’ would also be sufficient, assuming we only have one account with that username)
+      #3: in the third example, BJMP|AZ123 is parsed as the account location,
+ 
+     [when Location is a Counterparty, WhoTurnedInType is ALSO REQUIRED]
+      — e.g. cases:
+       #1: will fail to identify a WhoTurnedInType from the message; if a default has been /set, use the default, otherwise fail
+       #2: N/A because the Location (“DKNG|batman”) is an Account, not a Counterparty
+       #3: in the third example, “ig” stands for “i got”, and indicates the turnin type is Them; in this case, counterparty “Eric” turned in to us
+
+3) the [internal] profit-sharing agreement (aka, EquityPartnership)
+     — e.g. cases:
+      #1: Thirds is parsed as the EquityPartnership (assuming it has been previously registered with /new partnership)
+      #2: Alice5050 is identified as the EquityPartnership (assuming it has been previously registered with /new partnership)
+      #3: in the third example an EquityPartnership cannot be identified...
+       ... if a default has been set using “/set turnin_partnership”
+        the default will be used
+       ... else
+         this example WILL FAIL
+
+4) the date and time of the turnin
+      if date is specified:
+          if year is not specified:
+               year = coalesce(Defauls.current_year, Now().year)
+      else (date not specified):
+               date = coalesce(Defaults.current_date, Now().date)
+      if time not specified:
+              if date is today:
+                   use current time
+              else if date < today:
+                    use 5:55am ET
+
+* /set help *
+Usage: /set Property Value
+ Notes:
+  Value must be parsable as a Property.Type
+
+Properties:
+ (Name: Type)
+ ——————
+ current_date : Date
+ turnin_partnership : EquityPartnership
+  — e.g. /set turnin_partnership Alice5050
+ WhoTurnedInType : {Us, Them}
+  — e.g. /set who_turnedin_type us
+   /set who_turnedin_type them
+
+* /unset help *
+Usage: /unset Property
+
+Properties with current defaults:
+ (Name: CurrentDefaultValue)
+ ——————
+ WhoTurnedInType : Us
