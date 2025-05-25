@@ -3,7 +3,8 @@ import { registerUser, validateRegistrationInput } from '../functions/database';
 // Mock the mssql module
 jest.mock('mssql', () => ({
   connect: jest.fn(),
-  Char: jest.fn((size) => ({ type: 'char', size }))
+  Char: jest.fn((size) => ({ type: 'char', size })),
+  BigInt: jest.fn(() => ({ type: 'bigint' }))
 }));
 
 // Mock the sst module
@@ -97,7 +98,8 @@ describe('Database Registration', () => {
       // Mock successful database execution
       mockRequest.execute.mockResolvedValue({ recordset: [] });
       
-      const result = await registerUser('testuser', 'testtoken');
+      const telegramUserId = 123456789;
+      const result = await registerUser('testuser', 'testtoken', telegramUserId);
       
       expect(result.success).toBe(true);
       expect(result.message).toBe('Registration successful! Welcome testuser');
@@ -107,6 +109,7 @@ describe('Database Registration', () => {
       expect(mockPool.request).toHaveBeenCalled();
       expect(mockRequest.input).toHaveBeenCalledWith('Party', expect.anything(), 'testuser');
       expect(mockRequest.input).toHaveBeenCalledWith('Token', expect.anything(), 'testtoken');
+      expect(mockRequest.input).toHaveBeenCalledWith('TelegramUser', expect.anything(), telegramUserId);
       expect(mockRequest.execute).toHaveBeenCalledWith('dbo.PartyTelegramUser_REGISTER_tr');
       expect(mockPool.close).toHaveBeenCalled();
     });
@@ -115,7 +118,8 @@ describe('Database Registration', () => {
       // Mock connection failure
       (mockConnect as jest.MockedFunction<any>).mockRejectedValue(new Error('Connection failed'));
       
-      const result = await registerUser('testuser', 'testtoken');
+      const telegramUserId = 123456789;
+      const result = await registerUser('testuser', 'testtoken', telegramUserId);
       
       expect(result.success).toBe(false);
       expect(result.message).toBe('Registration failed. Please check your credentials and try again.');
@@ -125,7 +129,8 @@ describe('Database Registration', () => {
       // Mock successful connection but failed execution
       mockRequest.execute.mockRejectedValue(new Error('Stored procedure failed'));
       
-      const result = await registerUser('testuser', 'testtoken');
+      const telegramUserId = 123456789;
+      const result = await registerUser('testuser', 'testtoken', telegramUserId);
       
       expect(result.success).toBe(false);
       expect(result.message).toBe('Registration failed. Please check your credentials and try again.');

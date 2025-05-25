@@ -49,6 +49,14 @@ const setupBot = () => {
       return;
     }
 
+    // Get the Telegram user ID
+    const telegramUserId = ctx.from?.id;
+    if (!telegramUserId) {
+      debugLog("No Telegram user ID found in context");
+      await ctx.reply("Unable to identify user. Please try again.");
+      return;
+    }
+
     const parts = messageText.split(" ");
     
     debugLog("Command parts parsed", { parts, length: parts.length });
@@ -62,8 +70,8 @@ const setupBot = () => {
     
     const [, username, token] = parts;
     
-    console.log(`Registration attempt - Username: ${username}, Token: ${token.substring(0, 4)}...`);
-    debugLog("Registration details", { username, tokenPrefix: token.substring(0, 4) });
+    console.log(`Registration attempt - Username: ${username}, Token: ${token.substring(0, 4)}..., TelegramUserId: ${telegramUserId}`);
+    debugLog("Registration details", { username, tokenPrefix: token.substring(0, 4), telegramUserId });
     
     // Validate input parameters
     const validation = validateRegistrationInput(username, token);
@@ -76,14 +84,14 @@ const setupBot = () => {
     try {
       // Call database stored procedure
       debugLog("Calling database registration");
-      const result = await registerUser(username, token);
+      const result = await registerUser(username, token, telegramUserId);
       
       debugLog("Database call completed", { success: result.success });
       
       await ctx.reply(result.message);
       
       if (result.success) {
-        console.log(`User ${username} registered successfully`);
+        console.log(`User ${username} registered successfully with Telegram ID ${telegramUserId}`);
       }
       
     } catch (error) {

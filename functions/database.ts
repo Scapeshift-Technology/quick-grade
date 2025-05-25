@@ -39,7 +39,7 @@ export function validateRegistrationInput(username: string, token: string): Vali
 }
 
 // Call the database stored procedure for user registration
-export async function registerUser(username: string, token: string): Promise<RegistrationResult> {
+export async function registerUser(username: string, token: string, telegramUserId: number): Promise<RegistrationResult> {
   let pool: sql.ConnectionPool | undefined;
   
   try {
@@ -49,7 +49,8 @@ export async function registerUser(username: string, token: string): Promise<Reg
     // Create request with parameters
     const request = pool.request()
       .input('Party', sql.Char(32), username)
-      .input('Token', sql.Char(32), token);
+      .input('Token', sql.Char(32), token)
+      .input('TelegramUser', sql.BigInt, telegramUserId);
     
     // Execute stored procedure
     const result = await request.execute('dbo.PartyTelegramUser_REGISTER_tr');
