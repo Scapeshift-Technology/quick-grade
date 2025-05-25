@@ -21,7 +21,7 @@ const mockConnect = sql.connect as jest.MockedFunction<any>;
 describe('Registration Input Validation', () => {
   describe('validateRegistrationInput', () => {
     test('should pass validation for valid username and token', () => {
-      const username = 'ThisUsernameIsUnder32Chars';  // 32 characters
+      const username = 'UsrUnder16ch';
       const token = 'TokenIsOkBecauseItsExactly32Char';   // 32 characters
       
       const result = validateRegistrationInput(username, token);
@@ -30,14 +30,14 @@ describe('Registration Input Validation', () => {
     });
 
     test('should fail validation when username exceeds 32 characters', () => {
-      const username = 'ThisUsernameIsTooLongExceeds32Chars';  // 35 characters
+      const username = 'ThisUsernameTooLong';  // 19 characters
       const token = 'TokenIsOkBecauseItsExactly32Char';  // Valid token
       
       const result = validateRegistrationInput(username, token);
       
       expect(result.isValid).toBe(false);
       if (!result.isValid) {
-        expect(result.message).toBe('username is too long');
+        expect(result.message).toBe('username is too long (max 16 chars)');
       }
     });
 
@@ -62,7 +62,7 @@ describe('Registration Input Validation', () => {
       expect(result.isValid).toBe(false);
       // Should fail on username first (order of validation)
       if (!result.isValid) {
-        expect(result.message).toBe('username is too long');
+        expect(result.message).toBe('username is too long (max 16 chars)');
       }
     });
   });

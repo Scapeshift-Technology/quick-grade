@@ -20,10 +20,10 @@ export type ValidationResult = ValidationError | ValidationSuccess;
 // Validate input parameters according to database constraints
 export function validateRegistrationInput(username: string, token: string): ValidationResult {
   // Check username length (CHAR(32) constraint)
-  if (username.length > 32) {
+  if (username.length > 16) {
     return {
       isValid: false,
-      message: "username is too long"
+      message: "username is too long (max 16 chars)"
     };
   }
   
