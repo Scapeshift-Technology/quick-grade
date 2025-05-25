@@ -1,0 +1,9 @@
+# sst
+.sst
+
+# Node.js dependencies
+node_modules/
+
+# IDEs
+.idea
+.vscode

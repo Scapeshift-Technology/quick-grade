@@ -1,0 +1,26 @@
+{
+  "name": "quick-grade",
+  "version": "1.0.0",
+  "description": "Serverless Telegram Bot for user registration",
+  "main": "index.js",
+  "scripts": {
+    "dev": "sst dev --stage dev",
+    "build": "sst build",
+    "deploy": "sst deploy",
+    "remove": "sst remove",
+    "console": "sst console",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["telegram", "bot", "serverless", "aws", "lambda"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.816.0",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.149",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

@@ -137,7 +137,7 @@ Build a highly scalable serverless Telegram bot using AWS Lambda and SST (Server
 
 ### 5.1 Local Development Testing
 **Tools**: 
-- SST Live Lambda Development (`pnpm sst dev`)
+- SST Live Lambda Development (`npm run sst dev`)
 - Jest/Vitest for unit testing
 - Mock frameworks for external dependencies
 
@@ -185,24 +185,24 @@ Build a highly scalable serverless Telegram bot using AWS Lambda and SST (Server
 ### 6.1 Deployment Process
 ```bash
 # Local development
-pnpm sst dev
+npm run sst dev
 
 # Development/Staging deployment
-pnpm sst deploy --stage dev
+npm run sst deploy --stage dev
 
 # Production deployment
-pnpm sst deploy --stage prod
+npm run sst deploy --stage prod
 ```
 
 ### 6.2 Secret Management
 ```bash
 # Set development/staging secrets
-pnpm sst secrets set TELEGRAM_BOT_TOKEN "dev-bot-token" --stage dev
-pnpm sst secrets set DATABASE_CONNECTION_STRING "dev-db-string" --stage dev
+npm run sst secrets set TELEGRAM_BOT_TOKEN "dev-bot-token" --stage dev
+npm run sst secrets set DATABASE_CONNECTION_STRING "dev-db-string" --stage dev
 
 # Set production secrets
-pnpm sst secrets set TELEGRAM_BOT_TOKEN "prod-bot-token" --stage prod
-pnpm sst secrets set DATABASE_CONNECTION_STRING "prod-db-string" --stage prod
+npm run sst secrets set TELEGRAM_BOT_TOKEN "prod-bot-token" --stage prod
+npm run sst secrets set DATABASE_CONNECTION_STRING "prod-db-string" --stage prod
 ```
 
 ### 6.3 Telegram Webhook Configuration

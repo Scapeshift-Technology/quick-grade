@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "ts-node": {
+    "esm": false
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.js",
+    ".sst/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+} 

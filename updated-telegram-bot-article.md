@@ -21,82 +21,82 @@ AWS serverless offerings are ideal for this use case. We can deploy our bot as a
 
 Setting up AWS resources manually is time-consuming and error-prone. Instead, we'll use Infrastructure as Code (IaC) principles to declaratively specify our resources. SST (Serverless Stack) is perfect for this - it's specifically designed for building serverless applications and makes infrastructure a first-class citizen in your codebase.
 
-SST v3 makes it even easier with a unified config file and support for over 150 providers, giving you everything you need to build a massively scalable Telegram bot.
+SST v3 represents a major evolution from earlier versions, moving away from AWS CDK and CloudFormation to a Pulumi and Terraform-based engine. This new approach is faster, more flexible, and supports over 150 providers beyond just AWS.
 
-## Setting Up an SST Project for Our Telegram Bot
+## Setting Up an SST v3 Project for Our Telegram Bot
 
-Let's start by creating a new SST project:
+SST v3 takes a different approach than previous versions. Instead of using predefined templates, you start with a minimal project and build up your infrastructure using examples and components as references.
+
+Let's start by initializing a new SST v3 project:
 
 ```bash
-pnpm create sst@latest telegram-bot
+npm create sst@latest telegram-bot
 cd telegram-bot
-pnpm install
+npm install
 ```
 
-## Configuring the SST Stack
+Alternatively, if you're starting in an existing directory:
 
-We'll replace the default `sst.config.ts` with our Telegram bot configuration:
+```bash
+npm install sst
+npx sst init
+```
+
+## Configuring the SST v3 Stack
+
+SST v3 uses a completely new configuration format. We'll create our `sst.config.ts` with the new `$config()` approach:
 
 ```typescript
-import { SSTConfig } from "sst";
-import { Function, Config, Queue } from "sst/constructs";
+/// <reference path="./.sst/platform/config.d.ts" />
 
-export default {
-  config(_input) {
+export default $config({
+  app(input) {
     return {
       name: "telegram-bot",
-      region: "us-east-1",
+      removal: input?.stage === "production" ? "retain" : "remove",
+      home: "aws",
     };
   },
-  stacks(app) {
-    app.stack(function TelegramBotStack({ stack }) {
-      // Create a secure way to store the Telegram bot token
-      const TELEGRAM_BOT_TOKEN = new Config.Secret(stack, "TELEGRAM_BOT_TOKEN");
-      
-      // Create a dead-letter queue for failed message processing
-      const deadLetterQueue = new Queue(stack, "deadLetterQueue");
-      
-      // Create the message queue for handling messages in order
-      const messageQueue = new Queue(stack, "messageQueue", {
-        cdk: {
-          queue: {
-            fifo: true, // FIFO ensures messages are processed in order
-            deadLetterQueue: {
-              queue: deadLetterQueue.cdk.queue,
-              maxReceiveCount: 3, // Number of processing attempts before sending to DLQ
-            },
-          },
-        },
-        consumer: {
-          function: {
-            bind: [TELEGRAM_BOT_TOKEN],
-            handler: "functions/messageConsumer.handler",
-            nodejs: {
-              install: ["telegraf"], // Install Telegraf for the consumer
-            }
-          },
-        },
-      });
-      
-      // Create the webhook endpoint
-      const webhook = new Function(stack, "webhook", {
-        handler: "functions/webhook.handler",
-        bind: [messageQueue],
-        url: true, // Creates a function URL
-      });
-      
-      // Show the webhook URL in the output
-      stack.addOutputs({
-        WebhookUrl: webhook.url,
-        DeadLetterQueueUrl: deadLetterQueue.url,
-      });
+  async run() {
+    // Create secrets for sensitive data
+    const TELEGRAM_BOT_TOKEN = new sst.Secret("TELEGRAM_BOT_TOKEN");
+    const DATABASE_CONNECTION_STRING = new sst.Secret("DATABASE_CONNECTION_STRING");
+    
+    // Create a dead-letter queue for failed message processing
+    const deadLetterQueue = new sst.aws.Queue("DeadLetterQueue");
+    
+    // Create the message queue for handling messages in order
+    const messageQueue = new sst.aws.Queue("MessageQueue", {
+      fifo: true, // FIFO ensures messages are processed in order
+      dlq: {
+        queue: deadLetterQueue.arn,
+        maxReceiveCount: 3, // Number of processing attempts before sending to DLQ
+      },
     });
+    
+    // Create the message consumer function
+    messageQueue.subscribe("functions/messageConsumer.handler", {
+      link: [TELEGRAM_BOT_TOKEN, DATABASE_CONNECTION_STRING],
+    });
+    
+    // Create the webhook endpoint
+    const webhook = new sst.aws.Function("Webhook", {
+      handler: "functions/webhook.handler",
+      link: [messageQueue],
+      url: true, // Creates a function URL
+    });
+    
+    // Return outputs
+    return {
+      webhookUrl: webhook.url,
+      deadLetterQueueUrl: deadLetterQueue.url,
+    };
   },
-} satisfies SSTConfig;
+});
 ```
 
 This creates:
-1. A secure way to store our Telegram bot token
+1. Secure storage for our Telegram bot token and database connection
 2. A FIFO SQS queue for handling messages in order
 3. A dead-letter queue for failed message processing
 4. A Lambda function with a URL endpoint to receive webhook calls from Telegram
@@ -113,7 +113,8 @@ Before implementing the code, we need to set up a bot with BotFather:
 Next, set the token in SST:
 
 ```bash
-pnpm sst secrets set TELEGRAM_BOT_TOKEN "your-telegram-bot-token" --stage dev
+npx sst secret set TELEGRAM_BOT_TOKEN "your-telegram-bot-token" --stage dev
+npx sst secret set DATABASE_CONNECTION_STRING "your-database-connection" --stage dev
 ```
 
 ## Implementing Webhook Handler
@@ -122,12 +123,11 @@ Create the webhook handler in `functions/webhook.ts`:
 
 ```typescript
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
-import { Queue } from "sst/node/queue";
-import { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { Resource } from "sst";
 
 const sqs = new SQSClient({});
 
-export const handler: APIGatewayProxyHandlerV2 = async (event) => {
+export const handler = async (event: any) => {
   if (!event.body) {
     return {
       statusCode: 400,
@@ -143,7 +143,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const userId = update.message?.from?.id || update.callback_query?.from?.id || "unknown";
     
     await sqs.send(new SendMessageCommand({
-      QueueUrl: Queue.messageQueue.queueUrl,
+      QueueUrl: Resource.MessageQueue.url,
       MessageBody: event.body,
       MessageDeduplicationId: messageId.toString(),
       MessageGroupId: userId.toString(),
@@ -177,10 +177,10 @@ Create the message consumer in `functions/messageConsumer.ts`:
 ```typescript
 import { SQSEvent } from "aws-lambda";
 import { Telegraf } from "telegraf";
-import { Config } from "sst/node/config";
+import { Resource } from "sst";
 
 // Initialize bot with token from SST secrets
-const bot = new Telegraf(Config.TELEGRAM_BOT_TOKEN);
+const bot = new Telegraf(Resource.TELEGRAM_BOT_TOKEN.value);
 
 // Set up bot commands
 bot.command("start", (ctx) => ctx.reply("Welcome to my bot!"));
@@ -209,6 +209,78 @@ This function:
 2. Uses Telegraf to handle bot commands and messages
 3. Makes sure each update is processed in order within its message group
 
+## Installing Dependencies
+
+SST v3 makes dependency management simpler. You can install packages normally and SST will handle bundling them appropriately for each function.
+
+For our functions to work properly, we need to install the required packages:
+
+```bash
+# Install AWS SDK packages and Telegraf
+npm install @aws-sdk/client-sqs telegraf
+
+# Install AWS Lambda types for TypeScript
+npm install -D @types/aws-lambda
+```
+
+SST v3 automatically handles bundling only the dependencies each function actually needs, optimizing your Lambda function size.
+
+## Local Development with SST v3
+
+One of SST v3's best features is its live development environment. This lets you test your functions locally while still interacting with actual AWS resources like SQS queues.
+
+Start the local development environment:
+
+```bash
+npx sst dev
+```
+
+SST will:
+1. Deploy your infrastructure to AWS (but replace the Lambda functions with ones connected to your local machine)
+2. Watch for changes to your function code
+3. Open the SST Console in your browser
+4. Run any dev commands you've specified
+
+The SST Console provides real-time insights into your application:
+1. View logs from your Lambda functions in real-time
+2. Test your functions by sending sample events
+3. Monitor queue messages and function invocations
+4. See detailed error messages if something goes wrong
+
+This makes debugging straightforward - when you interact with your bot in Telegram, you'll see all the webhook requests and function logs right in the SST Console. You can modify your code and see changes take effect instantly without redeploying.
+
+For webhook testing, you'll need to expose your local development environment to the internet so Telegram can reach it. You can use a tool like ngrok:
+
+```bash
+# Install ngrok if you haven't already
+npm install -g ngrok
+
+# Start ngrok to tunnel to your SST dev environment
+ngrok http <your-sst-dev-url>
+```
+
+Then temporarily set your Telegram webhook to the ngrok URL:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=<YOUR_NGROK_URL>"
+```
+
+Remember to change your webhook back to your production URL when you're done testing.
+
+## Setting Up the Telegram Webhook
+
+After deploying our stack, we need to tell Telegram where to send updates:
+
+```bash
+npx sst deploy --stage dev
+```
+
+After deployment, use the webhook URL from the output:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=<YOUR_WEBHOOK_URL>"
+```
+
 ## Error Handling with Dead-Letter Queues
 
 In a production system, it's critical to handle errors gracefully. Messages might fail to process for various reasons:
@@ -220,13 +292,12 @@ In a production system, it's critical to handle errors gracefully. Messages migh
 
 A dead-letter queue (DLQ) captures messages that fail processing after multiple attempts. In our stack configuration, we've added a DLQ with a `maxReceiveCount` of 3, meaning a message will be moved to the DLQ after 3 failed processing attempts.
 
-To handle these failed messages, you might want to add a consumer to the DLQ:
+To handle these failed messages, you can add a subscriber to the DLQ in your configuration:
 
 ```typescript
-// Add this to your stack configuration
-deadLetterQueue.subscribe("deadLetterProcessor", {
-  handler: "functions/deadLetterProcessor.handler",
-  bind: [TELEGRAM_BOT_TOKEN],
+// Add this to your sst.config.ts run() function
+deadLetterQueue.subscribe("functions/deadLetterProcessor.handler", {
+  link: [TELEGRAM_BOT_TOKEN],
 });
 ```
 
@@ -236,9 +307,9 @@ Then implement a handler for failed messages:
 // functions/deadLetterProcessor.ts
 import { SQSEvent } from "aws-lambda";
 import { Telegraf } from "telegraf";
-import { Config } from "sst/node/config";
+import { Resource } from "sst";
 
-const bot = new Telegraf(Config.TELEGRAM_BOT_TOKEN);
+const bot = new Telegraf(Resource.TELEGRAM_BOT_TOKEN.value);
 
 export const handler = async (event: SQSEvent) => {
   for (const record of event.Records) {
@@ -278,80 +349,6 @@ With this setup, your bot can gracefully handle failures while providing feedbac
 
 For critical bots, you might also want to set up CloudWatch alarms on the DLQ to alert your team when messages start failing.
 
-## Installing Dependencies
-
-For our functions to work properly, we need to install the required packages. SST makes this easy by allowing you to specify packages directly in your function configuration using the `nodejs.install` property, as shown in our stack configuration.
-
-For local development, you'll also want to install these packages:
-
-```bash
-# Install AWS SDK packages
-pnpm add @aws-sdk/client-sqs
-
-# Install Telegraf for Telegram bot functionality
-pnpm add telegraf
-
-# Install AWS Lambda types for TypeScript
-pnpm add -D @types/aws-lambda
-```
-
-The great thing about SST is that when you deploy, it automatically bundles only the dependencies each function actually needs, optimizing your Lambda function size.
-
-## Local Development with SST
-
-One of SST's best features is its live Lambda development environment. This lets you test your functions locally while still interacting with actual AWS resources like SQS queues.
-
-Start the local development environment:
-
-```bash
-pnpm sst dev
-```
-
-SST will:
-1. Deploy your infrastructure to AWS (but replace the Lambda functions with ones connected to your local machine)
-2. Watch for changes to your function code
-3. Open the SST Console in your browser
-
-You can now test your webhook endpoint by sending requests to it. Since we're using a webhook, you'll need to use a tool like ngrok to expose your local development environment to the internet so Telegram can reach it:
-
-```bash
-# Install ngrok if you haven't already
-npm install -g ngrok
-
-# Start ngrok on the port where SST's function URL is accessible
-ngrok http <your-SST-dev-port>
-```
-
-Now, temporarily set your Telegram webhook to the ngrok URL:
-
-```bash
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=<YOUR_NGROK_URL>"
-```
-
-In the SST Console, you can:
-1. View logs from your Lambda functions in real-time
-2. Test your functions by sending sample events
-3. Monitor queue messages and function invocations
-4. See detailed error messages if something goes wrong
-
-This makes debugging straightforward - when you interact with your bot in Telegram, you'll see all the webhook requests and function logs right in the SST Console. You can modify your code and see changes take effect instantly without redeploying.
-
-Remember to change your webhook back to your production URL when you're done testing.
-
-## Setting Up the Telegram Webhook
-
-After deploying our stack, we need to tell Telegram where to send updates:
-
-```bash
-pnpm sst deploy --stage dev
-```
-
-After deployment, use the webhook URL from the output:
-
-```bash
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=<YOUR_WEBHOOK_URL>"
-```
-
 ## Advantages of This Architecture
 
 This architecture provides several benefits:
@@ -362,14 +359,32 @@ This architecture provides several benefits:
 4. **Parallelism**: Different users' messages are processed independently
 5. **Scalability**: The system scales automatically with message volume
 6. **Cost-Efficiency**: You only pay for actual usage
+7. **Live Development**: SST v3's live development makes iteration fast and easy
+
+## Production Deployment
+
+When you're ready to deploy to production:
+
+```bash
+npx sst deploy --stage production
+```
+
+SST v3 handles the deployment process efficiently, and you can monitor your deployed application through the SST Console.
+
+For production deployments, make sure to:
+1. Set your production secrets using `npx sst secret set --stage production`
+2. Configure your production webhook URL with Telegram
+3. Set up proper monitoring and alerting
+4. Consider implementing rate limiting and additional security measures
 
 ## Conclusion
 
-With SST and AWS serverless services, you can build highly scalable Telegram bots without worrying about infrastructure management. The architecture we've designed ensures:
+With SST v3 and AWS serverless services, you can build highly scalable Telegram bots without worrying about infrastructure management. The new SST v3 architecture ensures:
 
 - Messages are processed in the correct order for each user
 - The bot responds quickly to Telegram, avoiding timeouts
 - The system scales automatically with usage
-- Development is streamlined with infrastructure as code
+- Development is streamlined with live development and infrastructure as code
+- Faster deployments and fewer configuration gotchas compared to previous versions
 
 This approach lets you focus on your bot's unique functionality while the serverless infrastructure handles the rest. 
