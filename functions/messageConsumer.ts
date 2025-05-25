@@ -1,6 +1,7 @@
 import { SQSEvent } from "aws-lambda";
 import { Resource } from "sst";
-import { Telegraf } from "telegraf";
+import { Context, Telegraf } from "telegraf";
+import { registerUser, validateRegistrationInput } from "./database";
 
 // Debug helper function
 const debugLog = (message: string, data?: any) => {
@@ -35,14 +36,19 @@ const setupBot = () => {
   const bot = new Telegraf(Resource.TELEGRAM_BOT_TOKEN.value, botOptions);
 
   // Set up the /register command
-  bot.command("register", async (ctx) => {
+  bot.command("register", async (ctx: Context) => {
     debugLog("Register command received", {
-      messageText: ctx.message.text,
-      userId: ctx.from.id,
-      chatId: ctx.chat.id
+      messageText: ctx.message && 'text' in ctx.message ? ctx.message.text : undefined,
+      userId: ctx.from?.id,
+      chatId: ctx.chat?.id
     });
 
-    const messageText = ctx.message.text;
+    const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text : undefined;
+    if (!messageText) {
+      await ctx.reply("Invalid message format");
+      return;
+    }
+
     const parts = messageText.split(" ");
     
     debugLog("Command parts parsed", { parts, length: parts.length });
@@ -59,18 +65,26 @@ const setupBot = () => {
     console.log(`Registration attempt - Username: ${username}, Token: ${token.substring(0, 4)}...`);
     debugLog("Registration details", { username, tokenPrefix: token.substring(0, 4) });
     
+    // Validate input parameters
+    const validation = validateRegistrationInput(username, token);
+    if (!validation.isValid) {
+      debugLog("Input validation failed", { message: validation.message });
+      await ctx.reply(validation.message);
+      return;
+    }
+    
     try {
-      // TODO: Call database stored procedure dbo.PartyTelegramUser_REGISTER_tr
-      // For now, simulate database call
-      debugLog("Simulating database call");
+      // Call database stored procedure
+      debugLog("Calling database registration");
+      const result = await registerUser(username, token);
       
-      // Simulate some processing time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      debugLog("Database call completed", { success: result.success });
       
-      debugLog("Database call completed successfully");
+      await ctx.reply(result.message);
       
-      await ctx.reply(`Registration successful! Welcome ${username}`);
-      console.log(`User ${username} registered successfully`);
+      if (result.success) {
+        console.log(`User ${username} registered successfully`);
+      }
       
     } catch (error) {
       console.error("Registration error:", error);
@@ -84,20 +98,21 @@ const setupBot = () => {
   });
 
   // Add help command for testing
-  bot.command("help", async (ctx) => {
+  bot.command("help", async (ctx: Context) => {
     debugLog("Help command received");
     await ctx.reply("Available commands:\n/register [username] [token] - Register your account");
   });
 
   // Add start command for testing
-  bot.command("start", async (ctx) => {
+  bot.command("start", async (ctx: Context) => {
     debugLog("Start command received");
     await ctx.reply("Welcome! Use /help to see available commands.");
   });
 
   // Handle unknown commands
-  bot.on("text", async (ctx) => {
-    debugLog("Unknown text message received", { text: ctx.message.text });
+  bot.on("text", async (ctx: Context) => {
+    const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text : undefined;
+    debugLog("Unknown text message received", { text: messageText });
     await ctx.reply("Unknown command. Use /help to see available commands.");
   });
 
