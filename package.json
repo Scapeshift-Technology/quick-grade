@@ -13,19 +13,26 @@
     "test": "jest",
     "test:watch": "jest --watch"
   },
-  "keywords": ["telegram", "bot", "serverless", "aws", "lambda"],
+  "keywords": [
+    "telegram",
+    "bot",
+    "serverless",
+    "aws",
+    "lambda"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.816.0",
-    "telegraf": "^4.16.3",
-    "mssql": "^10.0.2"
+    "mssql": "^10.0.2",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.149",
     "@types/jest": "^29.5.12",
     "@types/mssql": "^9.1.5",
     "jest": "^29.7.0",
+    "sst": "^3.16.0",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

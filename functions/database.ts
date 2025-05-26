@@ -80,18 +80,9 @@ export async function registerUser(
     
     // Handle specific database errors if needed
     const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('errorMessage=', errorMessage);
     
-    // Extract the specific error message after ": " if it exists
-    const colonIndex = errorMessage.indexOf(': ');
-    let userMessage = "Registration failed, error unknown.";
-    
-    if (colonIndex !== -1 && colonIndex < errorMessage.length - 2) {
-      // Extract everything after ": "
-      const specificError = errorMessage.substring(colonIndex + 2).trim();
-      if (specificError) {
-        userMessage = specificError;
-      }
-    }
+    const userMessage = `Registration failed, error: ${errorMessage}`;
     
     return {
       success: false,
