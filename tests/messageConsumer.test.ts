@@ -3,8 +3,9 @@ import { registerUser, validateRegistrationInput } from '../functions/database';
 // Mock the mssql module
 jest.mock('mssql', () => ({
   connect: jest.fn(),
-  Char: jest.fn((size) => ({ type: 'char', size })),
-  BigInt: jest.fn(() => ({ type: 'bigint' }))
+  Char: (size: number) => ({ type: 'char', size }),
+  BigInt: { type: 'bigint' },
+  Bit: { type: 'bit' }
 }));
 
 // Mock the sst module
@@ -99,7 +100,12 @@ describe('Database Registration', () => {
       mockRequest.execute.mockResolvedValue({ recordset: [] });
       
       const telegramUserId = 123456789;
-      const result = await registerUser('testuser', 'testtoken', telegramUserId);
+      const isBot = false;
+      const firstName = 'John';
+      const lastName = 'Doe';
+      const telegramUsername = 'johndoe';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName, lastName, telegramUsername);
       
       expect(result.success).toBe(true);
       expect(result.message).toBe('Registration successful! Welcome testuser');
@@ -107,9 +113,13 @@ describe('Database Registration', () => {
       // Verify database calls
       expect(mockConnect).toHaveBeenCalledWith('Driver={ODBC Driver 18 for SQL Server};Server=tcp:test-server.database.windows.net,1433;Database=test-database;Uid=test-user;Pwd=test-password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;');
       expect(mockPool.request).toHaveBeenCalled();
-      expect(mockRequest.input).toHaveBeenCalledWith('Party', expect.anything(), 'testuser');
-      expect(mockRequest.input).toHaveBeenCalledWith('Token', expect.anything(), 'testtoken');
-      expect(mockRequest.input).toHaveBeenCalledWith('TelegramUser', expect.anything(), telegramUserId);
+      expect(mockRequest.input).toHaveBeenCalledWith('Party', { type: 'char', size: 32 }, 'testuser');
+      expect(mockRequest.input).toHaveBeenCalledWith('Token', { type: 'char', size: 32 }, 'testtoken');
+      expect(mockRequest.input).toHaveBeenCalledWith('TelegramUser', { type: 'bigint' }, telegramUserId);
+      expect(mockRequest.input).toHaveBeenCalledWith('IsBot', { type: 'bit' }, isBot);
+      expect(mockRequest.input).toHaveBeenCalledWith('FirstName', { type: 'char', size: 64 }, firstName);
+      expect(mockRequest.input).toHaveBeenCalledWith('LastName', { type: 'char', size: 64 }, lastName);
+      expect(mockRequest.input).toHaveBeenCalledWith('UserName', { type: 'char', size: 32 }, telegramUsername);
       expect(mockRequest.execute).toHaveBeenCalledWith('dbo.PartyTelegramUser_REGISTER_tr');
       expect(mockPool.close).toHaveBeenCalled();
     });
@@ -119,7 +129,10 @@ describe('Database Registration', () => {
       (mockConnect as jest.MockedFunction<any>).mockRejectedValue(new Error('Connection failed'));
       
       const telegramUserId = 123456789;
-      const result = await registerUser('testuser', 'testtoken', telegramUserId);
+      const isBot = false;
+      const firstName = 'John';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
       
       expect(result.success).toBe(false);
       expect(result.message).toBe('Registration failed. Please check your credentials and try again.');
@@ -130,10 +143,38 @@ describe('Database Registration', () => {
       mockRequest.execute.mockRejectedValue(new Error('Stored procedure failed'));
       
       const telegramUserId = 123456789;
-      const result = await registerUser('testuser', 'testtoken', telegramUserId);
+      const isBot = false;
+      const firstName = 'John';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
       
       expect(result.success).toBe(false);
       expect(result.message).toBe('Registration failed. Please check your credentials and try again.');
+      expect(mockPool.close).toHaveBeenCalled();
+    });
+
+    test('should successfully register user with minimal required parameters', async () => {
+      // Mock successful database execution
+      mockRequest.execute.mockResolvedValue({ recordset: [] });
+      
+      const telegramUserId = 123456789;
+      const isBot = false;
+      const firstName = 'Jane';
+      
+      const result = await registerUser('testuser2', 'testtoken2', telegramUserId, isBot, firstName);
+      
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Registration successful! Welcome testuser2');
+      
+      // Verify database calls with null values for optional parameters
+      expect(mockRequest.input).toHaveBeenCalledWith('Party', { type: 'char', size: 32 }, 'testuser2');
+      expect(mockRequest.input).toHaveBeenCalledWith('Token', { type: 'char', size: 32 }, 'testtoken2');
+      expect(mockRequest.input).toHaveBeenCalledWith('TelegramUser', { type: 'bigint' }, telegramUserId);
+      expect(mockRequest.input).toHaveBeenCalledWith('IsBot', { type: 'bit' }, isBot);
+      expect(mockRequest.input).toHaveBeenCalledWith('FirstName', { type: 'char', size: 64 }, firstName);
+      expect(mockRequest.input).toHaveBeenCalledWith('LastName', { type: 'char', size: 64 }, null);
+      expect(mockRequest.input).toHaveBeenCalledWith('UserName', { type: 'char', size: 32 }, null);
+      expect(mockRequest.execute).toHaveBeenCalledWith('dbo.PartyTelegramUser_REGISTER_tr');
       expect(mockPool.close).toHaveBeenCalled();
     });
   });

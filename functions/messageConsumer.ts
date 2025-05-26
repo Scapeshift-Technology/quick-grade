@@ -57,6 +57,12 @@ const setupBot = () => {
       return;
     }
 
+    // Extract additional user information from Telegram context
+    const isBot = ctx.from?.is_bot;
+    const firstName = ctx.from?.first_name;
+    const lastName = ctx.from?.last_name;
+    const telegramUsername = ctx.from?.username;
+
     const parts = messageText.split(" ");
     
     debugLog("Command parts parsed", { parts, length: parts.length });
@@ -71,7 +77,15 @@ const setupBot = () => {
     const [, username, token] = parts;
     
     console.log(`Registration attempt - Username: ${username}, Token: ${token.substring(0, 4)}..., TelegramUserId: ${telegramUserId}`);
-    debugLog("Registration details", { username, tokenPrefix: token.substring(0, 4), telegramUserId });
+    debugLog("Registration details", { 
+      username, 
+      tokenPrefix: token.substring(0, 4), 
+      telegramUserId,
+      isBot,
+      firstName,
+      lastName,
+      telegramUsername
+    });
     
     // Validate input parameters
     const validation = validateRegistrationInput(username, token);
@@ -84,7 +98,7 @@ const setupBot = () => {
     try {
       // Call database stored procedure
       debugLog("Calling database registration");
-      const result = await registerUser(username, token, telegramUserId);
+      const result = await registerUser(username, token, telegramUserId, isBot, firstName, lastName, telegramUsername);
       
       debugLog("Database call completed", { success: result.success });
       
