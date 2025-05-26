@@ -135,7 +135,7 @@ describe('Database Registration', () => {
       const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
       
       expect(result.success).toBe(false);
-      expect(result.message).toBe('Registration failed. Please check your credentials and try again.');
+      expect(result.message).toBe('Registration failed, error unknown.');
     });
 
     test('should handle stored procedure execution failure', async () => {
@@ -149,7 +149,7 @@ describe('Database Registration', () => {
       const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
       
       expect(result.success).toBe(false);
-      expect(result.message).toBe('Registration failed. Please check your credentials and try again.');
+      expect(result.message).toBe('Registration failed, error unknown.');
       expect(mockPool.close).toHaveBeenCalled();
     });
 
@@ -175,6 +175,86 @@ describe('Database Registration', () => {
       expect(mockRequest.input).toHaveBeenCalledWith('LastName', { type: 'char', size: 64 }, null);
       expect(mockRequest.input).toHaveBeenCalledWith('UserName', { type: 'char', size: 32 }, null);
       expect(mockRequest.execute).toHaveBeenCalledWith('dbo.PartyTelegramUser_REGISTER_tr');
+      expect(mockPool.close).toHaveBeenCalled();
+    });
+
+    test('should extract and return specific error message after colon from database error', async () => {
+      // Mock database error with specific format like the example
+      const databaseError = new Error("[S0008][50000] Line 139: Token for 'devtestparty' expired, try generating a new token using dbo. PartyTelegramRegistrationToken_CREATE_tr");
+      mockRequest.execute.mockRejectedValue(databaseError);
+      
+      const telegramUserId = 123456789;
+      const isBot = false;
+      const firstName = 'John';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
+      
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Token for 'devtestparty' expired, try generating a new token using dbo. PartyTelegramRegistrationToken_CREATE_tr");
+      expect(mockPool.close).toHaveBeenCalled();
+    });
+
+    test('should extract error message after first colon when multiple colons exist', async () => {
+      // Mock database error with multiple colons
+      const databaseError = new Error("Error code: Database error: Invalid token: Token has expired");
+      mockRequest.execute.mockRejectedValue(databaseError);
+      
+      const telegramUserId = 123456789;
+      const isBot = false;
+      const firstName = 'John';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
+      
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Database error: Invalid token: Token has expired");
+      expect(mockPool.close).toHaveBeenCalled();
+    });
+
+    test('should return default error message when no colon exists in error', async () => {
+      // Mock database error without colon
+      const databaseError = new Error("Database connection failed");
+      mockRequest.execute.mockRejectedValue(databaseError);
+      
+      const telegramUserId = 123456789;
+      const isBot = false;
+      const firstName = 'John';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
+      
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Registration failed, error unknown.");
+      expect(mockPool.close).toHaveBeenCalled();
+    });
+
+    test('should return default error message when colon is at the end', async () => {
+      // Mock database error with colon at the end
+      const databaseError = new Error("Database error:");
+      mockRequest.execute.mockRejectedValue(databaseError);
+      
+      const telegramUserId = 123456789;
+      const isBot = false;
+      const firstName = 'John';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
+      
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Registration failed, error unknown.");
+      expect(mockPool.close).toHaveBeenCalled();
+    });
+
+    test('should return default error message when text after colon is only whitespace', async () => {
+      // Mock database error with only whitespace after colon
+      const databaseError = new Error("Database error:   ");
+      mockRequest.execute.mockRejectedValue(databaseError);
+      
+      const telegramUserId = 123456789;
+      const isBot = false;
+      const firstName = 'John';
+      
+      const result = await registerUser('testuser', 'testtoken', telegramUserId, isBot, firstName);
+      
+      expect(result.success).toBe(false);
+      expect(result.message).toBe("Registration failed, error unknown.");
       expect(mockPool.close).toHaveBeenCalled();
     });
   });
