@@ -2,8 +2,12 @@
 
 export default $config({
   app(input) {
-    // Map stages to AWS profiles
-    const profile = input?.stage === "prod" ? "quick-grade-prod" : "quick-grade-dev";
+    // Map stages to AWS profiles - only use profiles for local development
+    // GitHub Actions will use the assumed role credentials
+    const isLocal = !process.env.GITHUB_ACTIONS;
+    const profile = isLocal 
+      ? (input?.stage === "prod" ? "quick-grade-prod" : "quick-grade-dev")
+      : undefined;
     
     return {
       name: "quick-grade",
@@ -12,7 +16,7 @@ export default $config({
       home: "aws",
       providers: {
         aws: {
-          profile,
+          ...(profile && { profile }), // Only set profile if it exists
           region: "us-east-1",
         },
       },

@@ -7,3 +7,5 @@ node_modules/
 # IDEs
 .idea
 .vscode
+CICD_SETUP_GUIDE.md
+AWS_SSO_SETUP_GUIDE.md

@@ -1,0 +1,66 @@
+name: SST Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write # Required for AWS OIDC
+      contents: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm test
+      
+      - name: Configure AWS credentials via OIDC
+        if: github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_PROD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Verify AWS access
+        run: |
+          echo "Verifying AWS access..."
+          aws sts get-caller-identity
+          
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main'  
+        id: deploy
+        run: |
+          echo "Deploying to production stage..."
+          npx sst deploy --stage prod
+        env:
+          NODE_ENV: production
+          
+      - name: Log deployment information
+        run: |
+          echo "🚀 Production deployment completed successfully!"
+          echo "Stage: prod"
+          echo "Environment: production"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          
+          # Get webhook URL from SST outputs (adjust based on your actual output name)
+          echo "Getting deployment outputs..."
+          npx sst env get webhookUrl --stage prod || echo "Webhook URL not available in outputs" 
