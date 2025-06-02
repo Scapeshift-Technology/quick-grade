@@ -25,8 +25,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
       
-      - name: Install dependencies
-        run: npm ci
+      - name: Clean and install all dependencies
+        run: |
+          echo "Running fresh CI install for CI/CD environment..."
+          npm run fresh-ci-install
       
       - name: Run tests
         run: npm test
@@ -42,17 +44,12 @@ jobs:
           echo "Verifying AWS access..."
           aws sts get-caller-identity
           
-      - name: Set SST secrets for production
-        run: |
-          echo "Setting production secrets..."
-          npx sst secret set TELEGRAM_BOT_TOKEN "${{ secrets.TELEGRAM_BOT_TOKEN }}" --stage prod
-          npx sst secret set DATABASE_CONNECTION_STRING "${{ secrets.DATABASE_CONNECTION_STRING }}" --stage prod
-          echo "Production secrets configured successfully"
-          
+
       - name: Deploy to production
         id: deploy
         run: |
           echo "Deploying to production stage..."
+          echo "Note: Chromium layer should be uploaded manually before this deployment"
           npx sst deploy --stage prod
         env:
           NODE_ENV: production
@@ -65,3 +62,4 @@ jobs:
           echo "Region: ${{ env.AWS_REGION }}"
           echo "Commit: ${{ github.sha }}"
           echo "Branch: ${{ github.ref_name }}"
+          echo "Note: Chromium layer managed manually via upload-layer.sh"

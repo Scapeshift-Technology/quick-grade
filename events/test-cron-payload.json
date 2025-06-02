@@ -1,0 +1,13 @@
+{
+  "version": "0",
+  "id": "test-event-id",
+  "detail-type": "Scheduled Event",
+  "source": "aws.events",
+  "account": "123456789012",
+  "time": "2024-01-15T10:00:00Z",
+  "region": "us-east-1",
+  "detail": {},
+  "resources": [
+    "arn:aws:events:us-east-1:123456789012:rule/test-cron-rule"
+  ]
+} 

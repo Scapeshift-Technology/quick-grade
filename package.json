@@ -1,7 +1,7 @@
 {
   "name": "quick-grade",
   "version": "1.0.0",
-  "description": "Serverless Telegram Bot for user registration",
+  "description": "Serverless Telegram Bot for user registration and cron jobs",
   "main": "index.js",
   "scripts": {
     "dev": "sst dev --stage dev",
@@ -11,20 +11,27 @@
     "console": "sst console",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "clean": "rm -rf node_modules package-lock.json && find functions -name node_modules -type d -exec rm -rf {} + 2>/dev/null || true && find functions -name package-lock.json -type f -delete 2>/dev/null || true",
+    "install-all": "npm install && cd functions/cron/testCron && npm install && cd ../../..",
+    "ci-install": "npm ci && cd functions/cron/testCron && npm ci && cd ../../..",
+    "fresh-install": "npm run clean && npm run install-all",
+    "fresh-ci-install": "npm run clean && npm run ci-install"
   },
   "keywords": [
     "telegram",
     "bot",
     "serverless",
     "aws",
-    "lambda"
+    "lambda",
+    "cron"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-sns": "^3.816.0",
     "@aws-sdk/client-sqs": "^3.816.0",
-    "mssql": "^10.0.2",
+    "mssql": "^11.0.1",
     "telegraf": "^4.16.3"
   },
   "devDependencies": {

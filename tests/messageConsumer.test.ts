@@ -8,13 +8,8 @@ jest.mock('mssql', () => ({
   Bit: { type: 'bit' }
 }));
 
-// Mock the sst module
-jest.mock('sst', () => ({
-  Resource: {
-    TELEGRAM_BOT_TOKEN: { value: 'test-bot-token' },
-    DATABASE_CONNECTION_STRING: { value: 'Driver={ODBC Driver 18 for SQL Server};Server=tcp:test-server.database.windows.net,1433;Database=test-database;Uid=test-user;Pwd=test-password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;' }
-  }
-}));
+// Mock the sst module (implementation is in __mocks__/sst.ts)
+jest.mock('sst');
 
 // Import after mocking
 import * as sql from 'mssql';

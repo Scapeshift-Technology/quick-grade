@@ -1,5 +1,7 @@
 # sst
 .sst
+sst-env.d.ts
+resource.enc
 
 # Node.js dependencies
 node_modules/
@@ -9,3 +11,4 @@ node_modules/
 .vscode
 CICD_SETUP_GUIDE.md
 AWS_SSO_SETUP_GUIDE.md
+/events/response.json

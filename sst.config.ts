@@ -1,5 +1,84 @@
 /// <reference path="./.sst/platform/config.d.ts" />
 
+// Common cron schedule configuration
+// All times specified in ET (Eastern Time) and converted to UTC for AWS EventBridge
+// Using EDT offset (UTC-4): 8am ET = 12pm UTC (12:00), 8pm ET = 12am UTC (00:00)
+// Note: AWS EventBridge doesn't auto-adjust for DST, so using EDT offset year-round
+// AWS EventBridge format: minute hour day-of-month month day-of-week year
+const commonSchedules = {
+  testCron: "*/15 * * * ? *", // Every 15 minutes
+  // Future ESPN and Steamer schedules (kept for reference)
+  // espnScrapers: "0 12,0 * * ? *", // 8am and 8pm ET = 12pm and 12am UTC (EDT offset)
+  // steamerUpload: "30 12 * * ? *", // 8:30am ET = 12:30pm UTC (EDT offset)
+};
+
+// League-specific active seasons (kept for future ESPN scraper implementation)
+const leagueSeasons = {
+  cfb: { start: "08-01", end: "02-20" }, // Aug 1 to Feb 20
+  nfl: { start: "08-01", end: "02-20" }, // Aug 1 to Feb 20
+  cbb: { start: "11-01", end: "04-01" }, // Nov 1 to Apr 1
+  nba: { start: "10-01", end: "06-30" }, // Oct 1 to June 30
+  wnba: { start: "05-01", end: "10-31" }, // May 1 to Oct 31
+  mlb: { start: "03-15", end: "11-15" }, // March 15 to Nov 15
+};
+
+// Helper function to get active season for leagues (kept for future use)
+const getActiveSeasonForLeagues = (leagues: string[]) => {
+  // For multiple leagues, use the first league's season (NFL/CFB share the same season)
+  return leagueSeasons[leagues[0] as keyof typeof leagueSeasons];
+};
+
+// Base cron job configuration - simplified for now
+const baseCronConfig = {
+  testCron: {
+    schedule: commonSchedules.testCron,
+    enabled: true
+  },
+  // Future ESPN and Steamer configurations (commented out for now)
+  /*
+  espnScraperNFLCFB: {
+    schedule: commonSchedules.espnScrapers,
+    leagues: ["cfb", "nfl"],
+    activeSeason: getActiveSeasonForLeagues(["cfb", "nfl"]),
+    enabled: true
+  },
+  espnScraperCBK: {
+    schedule: commonSchedules.espnScrapers,
+    leagues: ["cbb"],
+    activeSeason: getActiveSeasonForLeagues(["cbb"]),
+    enabled: true
+  },
+  espnScraperNBA: {
+    schedule: commonSchedules.espnScrapers,
+    leagues: ["nba"],
+    activeSeason: getActiveSeasonForLeagues(["nba"]),
+    enabled: true
+  },
+  espnScraperWNBA: {
+    schedule: commonSchedules.espnScrapers,
+    leagues: ["wnba"],
+    activeSeason: getActiveSeasonForLeagues(["wnba"]),
+    enabled: true
+  },
+  espnScraperMLB: {
+    schedule: commonSchedules.espnScrapers,
+    leagues: ["mlb"],
+    activeSeason: getActiveSeasonForLeagues(["mlb"]),
+    enabled: true
+  },
+  steamerUpload: {
+    schedule: commonSchedules.steamerUpload,
+    enabled: true
+  }
+  */
+};
+
+// Cron job configuration - same configuration for all environments
+const cronConfig = {
+  dev: baseCronConfig,
+  prod: baseCronConfig
+};
+
 export default $config({
   app(input) {
     // Map stages to AWS profiles - only use profiles for local development
@@ -23,9 +102,28 @@ export default $config({
     };
   },
   async run() {
+    const stage = $app.stage as 'dev' | 'prod';
+    const config = cronConfig[stage];
+    
     // Create secrets for sensitive data
     const TELEGRAM_BOT_TOKEN = new sst.Secret("TELEGRAM_BOT_TOKEN");
-    const DATABASE_CONNECTION_STRING = new sst.Secret("DATABASE_CONNECTION_STRING");
+    const DATABASE_CONNECTION_STRING_TELEGRAM_BOT = new sst.Secret("DATABASE_CONNECTION_STRING_TELEGRAM_BOT");
+    
+    // Create database connection secret for cron test
+    const DATABASE_CONNECTION_STRING_CRON_TEST = new sst.Secret("DATABASE_CONNECTION_STRING_CRON_TEST");
+    
+    // Future secrets (commented out for now)
+    /*
+    const DATABASE_CONNECTION_STRING_ESPN_SCRAPER = new sst.Secret("DATABASE_CONNECTION_STRING_ESPN_SCRAPER");
+    const DATABASE_CONNECTION_STRING_STEAMER_UPLOAD = new sst.Secret("DATABASE_CONNECTION_STRING_STEAMER_UPLOAD");
+    const STEAMER_USR = new sst.Secret("STEAMER_USR");
+    const STEAMER_PW = new sst.Secret("STEAMER_PW");
+    const CHROMIUM_LAYER_ARN = new sst.Secret("CHROMIUM_LAYER_ARN");
+    */
+    
+    // Create SNS topics for notifications - emails can be subscribed manually in AWS Console
+    const cronErrorNotificationTopic = new sst.aws.SnsTopic("CronErrorNotificationTopic");
+    const cronSuccessNotificationTopic = new sst.aws.SnsTopic("CronSuccessNotificationTopic");
     
     // Create the message queue for handling messages in order
     const messageQueue = new sst.aws.Queue("MessageQueue", {
@@ -35,7 +133,8 @@ export default $config({
     // Create the message consumer function
     const messageConsumer = new sst.aws.Function("MessageConsumer", {
       handler: "functions/messageConsumer.handler",
-      link: [TELEGRAM_BOT_TOKEN, DATABASE_CONNECTION_STRING, messageQueue],
+      architecture: "arm64",
+      link: [TELEGRAM_BOT_TOKEN, DATABASE_CONNECTION_STRING_TELEGRAM_BOT, messageQueue],
       environment: {
         NODE_ENV: $app.stage === "prod" ? "production" : "development",
         STAGE: $app.stage,
@@ -48,6 +147,7 @@ export default $config({
     // Create the webhook endpoint
     const webhook = new sst.aws.Function("Webhook", {
       handler: "functions/webhook.handler",
+      architecture: "arm64",
       link: [messageQueue],
       url: true, // Creates a function URL
       environment: {
@@ -56,10 +156,83 @@ export default $config({
       },
     });
     
+    // Test Cron Job - Simple database connectivity test
+    const testCron = new sst.aws.Cron("TestCron", {
+      schedule: `cron(${config.testCron.schedule})`,
+      job: {
+        handler: "functions/cron/testCron/handler.handler",
+        architecture: "arm64",
+        nodejs: {
+          format: "cjs",
+          esbuild: {
+            target: "node20",
+            format: "cjs",
+            platform: "node"
+          }
+        },
+        link: [
+          cronErrorNotificationTopic,
+          cronSuccessNotificationTopic
+        ],
+        environment: {
+          NODE_ENV: $app.stage === "prod" ? "production" : "development",
+          STAGE: $app.stage,
+          CRON_JOB_NAME: "test-cron",
+          PLAYWRIGHT_BROWSERS_PATH: "/tmp",
+          DATABASE_CONNECTION_STRING: DATABASE_CONNECTION_STRING_CRON_TEST.value
+        },
+      },
+    });
+    
+    // Future ESPN and Steamer cron jobs (commented out for now)
+    /*
+    const espnScraperNFLCFBCron = new sst.aws.Cron("EspnScraperNFLCFBCron", {
+      schedule: `cron(${config.espnScraperNFLCFB.schedule})`,
+      job: {
+        handler: "handler.handler",
+        bundle: "functions/cron/espnScraper",
+        architecture: "arm64",
+        link: [
+          DATABASE_CONNECTION_STRING_ESPN_SCRAPER,
+          cronErrorNotificationTopic,
+          cronSuccessNotificationTopic
+        ],
+        layers: [CHROMIUM_LAYER_ARN.value],
+        timeout: "15 minutes",
+        memory: "2048 MB",
+        environment: {
+          NODE_ENV: $app.stage === "prod" ? "production" : "development",
+          STAGE: $app.stage,
+          CRON_JOB_NAME: "espn-scraper-nflcfb",
+          ESPN_LEAGUES: JSON.stringify(config.espnScraperNFLCFB.leagues),
+          ESPN_ACTIVE_SEASON_START: config.espnScraperNFLCFB.activeSeason.start,
+          ESPN_ACTIVE_SEASON_END: config.espnScraperNFLCFB.activeSeason.end,
+          MAX_SIMULTANEOUS_PAGES: "3",
+          PLAYWRIGHT_HEADED: "false"
+        },
+      },
+    });
+    
+    // ... other ESPN scrapers and Steamer upload cron jobs would go here
+    */
+    
     // Return outputs
     return {
       webhookUrl: webhook.url,
       messageQueueUrl: messageQueue.url,
+      testCronSchedule: config.testCron.schedule,
+      cronErrorTopicArn: cronErrorNotificationTopic.arn,
+      cronSuccessTopicArn: cronSuccessNotificationTopic.arn,
+      // Future outputs (commented out for now)
+      /*
+      espnScraperNFLCFBSchedule: config.espnScraperNFLCFB.schedule,
+      espnScraperCBKSchedule: config.espnScraperCBK.schedule,
+      espnScraperNBASchedule: config.espnScraperNBA.schedule,
+      espnScraperWNBASchedule: config.espnScraperWNBA.schedule,
+      espnScraperMLBSchedule: config.espnScraperMLB.schedule,
+      steamerUploadSchedule: config.steamerUpload.schedule,
+      chromiumLayerArn: CHROMIUM_LAYER_ARN.value,
+      */
     };
   },
 });

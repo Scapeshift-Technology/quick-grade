@@ -17,6 +17,39 @@ export interface ValidationSuccess {
 
 export type ValidationResult = ValidationError | ValidationSuccess;
 
+export interface DatabaseConfig {
+  connectionString: string;
+}
+
+export type DatabaseService = 'telegram-bot' | 'espn-scraper' | 'steamer-upload';
+
+// Get database connection string for different services
+export function getDatabaseConfig(service: DatabaseService): DatabaseConfig {
+  let connectionString: string;
+  
+  switch (service) {
+    case 'telegram-bot':
+      connectionString = Resource.DATABASE_CONNECTION_STRING_TELEGRAM_BOT.value;
+      break;
+    case 'espn-scraper':
+      connectionString = Resource.DATABASE_CONNECTION_STRING_ESPN_SCRAPER.value;
+      break;
+    case 'steamer-upload':
+      connectionString = Resource.DATABASE_CONNECTION_STRING_STEAMER_UPLOAD.value;
+      break;
+    default:
+      throw new Error(`Unknown database service: ${service}`);
+  }
+
+  return { connectionString };
+}
+
+// Create a database connection pool for a specific service
+export async function createDatabaseConnection(service: DatabaseService): Promise<sql.ConnectionPool> {
+  const config = getDatabaseConfig(service);
+  return await sql.connect(config.connectionString);
+}
+
 // Validate input parameters according to database constraints
 export function validateRegistrationInput(username: string, token: string): ValidationResult {
   // Check username length (CHAR(32) constraint)
@@ -51,8 +84,8 @@ export async function registerUser(
   let pool: sql.ConnectionPool | undefined;
   
   try {
-    // Create connection pool
-    pool = await sql.connect(Resource.DATABASE_CONNECTION_STRING.value);
+    // Create connection pool using telegram-bot service
+    pool = await createDatabaseConnection('telegram-bot');
     
     // Create request with parameters
     const request = pool.request()
