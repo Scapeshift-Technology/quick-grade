@@ -32,11 +32,11 @@ export function getDatabaseConfig(service: DatabaseService): DatabaseConfig {
       connectionString = Resource.DATABASE_CONNECTION_STRING_TELEGRAM_BOT.value;
       break;
     case 'espn-scraper':
-      connectionString = Resource.DATABASE_CONNECTION_STRING_ESPN_SCRAPER.value;
-      break;
+      // Resource not yet configured in SST - will be added as DATABASE_CONNECTION_STRING_ESPN_SCRAPER.value when ESPN scraper is implemented
+      throw new Error(`ESPN scraper database connection not configured yet`);
     case 'steamer-upload':
-      connectionString = Resource.DATABASE_CONNECTION_STRING_STEAMER_UPLOAD.value;
-      break;
+      // Resource not yet configured in SST - will be added as DATABASE_CONNECTION_STRING_STEAMER_UPLOAD.value when Steamer upload is implemented
+      throw new Error(`Steamer upload database connection not configured yet`);
     default:
       throw new Error(`Unknown database service: ${service}`);
   }

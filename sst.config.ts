@@ -118,8 +118,8 @@ export default $config({
     const DATABASE_CONNECTION_STRING_STEAMER_UPLOAD = new sst.Secret("DATABASE_CONNECTION_STRING_STEAMER_UPLOAD");
     const STEAMER_USR = new sst.Secret("STEAMER_USR");
     const STEAMER_PW = new sst.Secret("STEAMER_PW");
-    const CHROMIUM_LAYER_ARN = new sst.Secret("CHROMIUM_LAYER_ARN");
     */
+    const CHROMIUM_LAYER_ARN = new sst.Secret("CHROMIUM_LAYER_ARN");
     
     // Create SNS topics for notifications - emails can be subscribed manually in AWS Console
     const cronErrorNotificationTopic = new sst.aws.SnsTopic("CronErrorNotificationTopic");
@@ -170,6 +170,9 @@ export default $config({
             platform: "node"
           }
         },
+        layers: [CHROMIUM_LAYER_ARN.value],
+        timeout: "5 minutes",
+        memory: "1024 MB",
         link: [
           cronErrorNotificationTopic,
           cronSuccessNotificationTopic
