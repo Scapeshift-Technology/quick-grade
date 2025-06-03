@@ -1,1 +1,1 @@
-layers/chromium/layer.zip filter=lfs diff=lfs merge=lfs -text
+layers/chromium/*.zip filter=lfs diff=lfs merge=lfs -text

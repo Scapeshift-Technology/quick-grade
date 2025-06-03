@@ -5,7 +5,9 @@
   "dependencies": {
     "mssql": "^11.0.1",
     "@aws-sdk/client-sns": "^3.645.0",
-    "sst": "^3.0.0"
+    "sst": "^3.0.0",
+    "puppeteer": "^23.9.0",
+    "puppeteer-core": "^23.9.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145"

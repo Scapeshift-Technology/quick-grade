@@ -5,25 +5,33 @@
 # 
 # Usage:
 #   1. Login to AWS SSO: aws sso login --profile quick-grade-dev
-#   2. Run script: ./upload-layer.sh --profile quick-grade-dev
+#   2. Run script: ./upload-layer.sh --profile quick-grade-dev --file path/to/your/layer.zip
 #   3. Copy the ARN output and set as secret: sst secret set CHROMIUM_LAYER_ARN "arn:..." --stage dev
 
 set -e  # Exit on error
 
 # Parse command line arguments
-if [ $# -ne 2 ] || [ "$1" != "--profile" ]; then
+if [ $# -ne 4 ] || [ "$1" != "--profile" ] || [ "$3" != "--file" ]; then
   echo "Error: Invalid arguments"
-  echo "Usage: $0 --profile <aws-profile-name>"
+  echo "Usage: $0 --profile <aws-profile-name> --file <path-to-zip-file>"
   echo ""
   echo "Examples:"
-  echo "  $0 --profile quick-grade-dev"
-  echo "  $0 --profile quick-grade-prod"
+  echo "  $0 --profile quick-grade-dev --file ./layer.zip"
+  echo "  $0 --profile quick-grade-prod --file ../custom-layer.zip"
   exit 1
 fi
 
 AWS_PROFILE="$2"
+LAYER_ZIP_PATH="$4"
 
-echo "🚀 Uploading Chromium layer using profile: $AWS_PROFILE"
+echo "🚀 Uploading Chromium layer using profile: $AWS_PROFILE with file: $LAYER_ZIP_PATH"
+
+# Validate that the provided file is a zip file
+if [[ "$LAYER_ZIP_PATH" != *.zip ]]; then
+  echo "❌ Error: The provided file must be a .zip file."
+  echo "Provided file: $LAYER_ZIP_PATH"
+  exit 1
+fi
 
 # Check if AWS profile exists
 if ! aws configure list-profiles | grep -q "^${AWS_PROFILE}$"; then
@@ -38,17 +46,6 @@ if ! aws configure list-profiles | grep -q "^${AWS_PROFILE}$"; then
 fi
 
 echo "✅ AWS profile '$AWS_PROFILE' found"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LAYER_ZIP_PATH="${SCRIPT_DIR}/layer.zip"
-
-# Validate that layer.zip exists
-if [ ! -f "$LAYER_ZIP_PATH" ]; then
-    echo "❌ Error: layer.zip not found at $LAYER_ZIP_PATH"
-    echo "Please ensure the layer.zip file is present in the layers/chromium/ directory"
-    echo "The layer.zip should contain: nodejs/node_modules/chromium-for-lambda/"
-    exit 1
-fi
 
 # Configuration
 LAYER_NAME="chromium-for-lambda-quick-grade"
