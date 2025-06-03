@@ -33,7 +33,7 @@
     "@aws-sdk/client-sqs": "^3.816.0",
     "chromium-bidi": "^5.3.1",
     "mssql": "^11.0.1",
-    "playwright-core": "^1.52.0",
+    "playwright-core": "1.41.2",
     "telegraf": "^4.16.3"
   },
   "devDependencies": {

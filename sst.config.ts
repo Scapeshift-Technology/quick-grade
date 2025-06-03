@@ -6,7 +6,7 @@
 // Note: AWS EventBridge doesn't auto-adjust for DST, so using EDT offset year-round
 // AWS EventBridge format: minute hour day-of-month month day-of-week year
 const commonSchedules = {
-  testCron: "*/15 * * * ? *", // Every 15 minutes
+  testCron: "0 15 * * ? *",
   // Future ESPN and Steamer schedules (kept for reference)
   // espnScrapers: "0 12,0 * * ? *", // 8am and 8pm ET = 12pm and 12am UTC (EDT offset)
   // steamerUpload: "30 12 * * ? *", // 8:30am ET = 12:30pm UTC (EDT offset)
@@ -112,6 +112,11 @@ export default $config({
     // Create database connection secret for cron test
     const DATABASE_CONNECTION_STRING_CRON_TEST = new sst.Secret("DATABASE_CONNECTION_STRING_CRON_TEST");
     
+    // Create proxy secrets for cron test
+    const PROXY_USER = new sst.Secret("PROXY_USER");
+    const PROXY_PASS = new sst.Secret("PROXY_PASS");
+    const PROXY_HOST_PORT = new sst.Secret("PROXY_HOST_PORT");
+    
     // Future secrets (commented out for now)
     /*
     const DATABASE_CONNECTION_STRING_ESPN_SCRAPER = new sst.Secret("DATABASE_CONNECTION_STRING_ESPN_SCRAPER");
@@ -171,18 +176,24 @@ export default $config({
           }
         },
         layers: [CHROMIUM_LAYER_ARN.value],
-        timeout: "5 minutes",
-        memory: "1024 MB",
+        timeout: "1 minutes",
+        memory: "8192 MB",
         link: [
           cronErrorNotificationTopic,
-          cronSuccessNotificationTopic
+          cronSuccessNotificationTopic,
+          // PROXY_USER: PROXY_USER.value, // Temporarily commented out
+          // PROXY_PASS: PROXY_PASS.value, // Temporarily commented out
+          // PROXY_HOST_PORT: PROXY_HOST_PORT.value // Temporarily commented out
         ],
         environment: {
           NODE_ENV: $app.stage === "prod" ? "production" : "development",
           STAGE: $app.stage,
           CRON_JOB_NAME: "test-cron",
-          PLAYWRIGHT_BROWSERS_PATH: "/tmp",
-          DATABASE_CONNECTION_STRING: DATABASE_CONNECTION_STRING_CRON_TEST.value
+          DEBUG: "pw:api",
+          DATABASE_CONNECTION_STRING: DATABASE_CONNECTION_STRING_CRON_TEST.value,
+          // PROXY_USER: PROXY_USER.value, // Temporarily commented out
+          // PROXY_PASS: PROXY_PASS.value, // Temporarily commented out
+          // PROXY_HOST_PORT: PROXY_HOST_PORT.value // Temporarily commented out
         },
       },
     });
