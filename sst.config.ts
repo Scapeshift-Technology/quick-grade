@@ -7,7 +7,7 @@
 // AWS EventBridge format: minute hour day-of-month month day-of-week year
 const commonSchedules = {
   testCron: "0 15 * * ? *",
-  uploadMLBPlayerTeamHistory: "0 19 * * ? *", // Daily at noon ET (4pm UTC)
+  uploadMLBPlayerTeamHistory: "0 14 * * ? *", // Daily at 10am ET (2pm UTC)
   // Future ESPN and Steamer schedules (kept for reference)
   // espnScrapers: "0 12,0 * * ? *", // 8am and 8pm ET = 12pm and 12am UTC (EDT offset)
   // steamerUpload: "30 12 * * ? *", // 8:30am ET = 12:30pm UTC (EDT offset)
