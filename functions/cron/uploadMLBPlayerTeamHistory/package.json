@@ -1,0 +1,13 @@
+{
+  "name": "upload-mlb-player-team-history",
+  "version": "1.0.0",
+  "main": "handler.ts",
+  "dependencies": {
+    "mssql": "^11.0.1",
+    "@aws-sdk/client-sns": "^3.645.0",
+    "sst": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145"
+  }
+} 

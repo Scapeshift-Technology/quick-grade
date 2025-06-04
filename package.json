@@ -13,8 +13,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "clean": "rm -rf node_modules package-lock.json && find functions -name node_modules -type d -exec rm -rf {} + 2>/dev/null || true && find functions -name package-lock.json -type f -delete 2>/dev/null || true",
-    "install-all": "npm install && cd functions/cron/testCron && npm install && cd ../../..",
-    "ci-install": "npm ci && cd functions/cron/testCron && npm ci && cd ../../..",
+    "install-all": "npm install && for dir in functions/cron/*/; do [ -f \"$dir/package.json\" ] && echo \"Installing dependencies in $dir\" && (cd \"$dir\" && npm install) || true; done",
+    "ci-install": "npm ci && for dir in functions/cron/*/; do [ -f \"$dir/package.json\" ] && echo \"CI installing dependencies in $dir\" && (cd \"$dir\" && npm ci) || true; done",
     "fresh-install": "npm run clean && npm run install-all",
     "fresh-ci-install": "npm run clean && npm run ci-install"
   },

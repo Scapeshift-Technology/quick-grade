@@ -1,9 +1,11 @@
-import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import type { ScheduledEvent } from 'aws-lambda';
-import * as sql from 'mssql';
-import { Resource } from 'sst';
-
-const sns = new SNSClient({ region: 'us-east-1' });
+import { logCronExecution } from '../../database';
+import {
+  formatEasternTime,
+  getEnvironmentType,
+  sendCronErrorNotification,
+  sendCronSuccessNotification
+} from '../../notifications';
 
 async function scrapeHackerNewsTopStory(): Promise<string> {
   console.log('🚀 Starting Hacker News top story scraping...');
@@ -58,6 +60,9 @@ async function scrapeHackerNewsTopStory(): Promise<string> {
       console.log(`🌐 Using proxy server: ${proxyHostPort}`);
     } else {
       console.log('ℹ️ No proxy configuration found or proxy environment variables are incomplete. Proceeding without proxy.');
+      console.log('ℹ️ Proxy host port:', proxyHostPort);
+      console.log('ℹ️ Proxy user:', proxyUser);
+      console.log('ℹ️ Proxy pass is set? = ', !!proxyPass);
     }
 
     // Perform curl IP check if proxy is configured
@@ -221,143 +226,56 @@ async function scrapeHackerNewsTopStory(): Promise<string> {
 export const handler = async (event: ScheduledEvent) => {
   console.log('Cron event:', event);
   const startTime = new Date();
+  const environment = getEnvironmentType();
+  const easternTimeString = formatEasternTime(startTime);
   
-  // Detect if we're running locally vs in Lambda
-  const isLocal = !process.env.AWS_LAMBDA_FUNCTION_NAME;
-  console.log(`Handler running in ${isLocal ? 'LOCAL' : 'LAMBDA'} environment`);
-  
-  // Format start time as ISO string in Eastern Time
-  const easternTime = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
-  
-  const parts = easternTime.formatToParts(startTime);
-  const easternTimeString = `${parts.find(p => p.type === 'year')?.value}-${parts.find(p => p.type === 'month')?.value}-${parts.find(p => p.type === 'day')?.value}T${parts.find(p => p.type === 'hour')?.value}:${parts.find(p => p.type === 'minute')?.value}:${parts.find(p => p.type === 'second')?.value}`;
-  
+  console.log(`Handler running in ${environment.toUpperCase()} environment`);
   console.log(`Cron job started at: ${easternTimeString} ET`);
   
   try {
-    // Connect to database using environment variable
-    const connectionString = process.env.DATABASE_CONNECTION_STRING;
-    if (!connectionString) {
-      throw new Error('DATABASE_CONNECTION_STRING environment variable is not set');
-    }
-    
-    // Create connection pool
-    const pool = new sql.ConnectionPool(connectionString);
-    await pool.connect();
-    
-    console.log('Successfully connected to database');
-    
-    // Insert record into _CronLogins table
-    const insertQuery = `
-      INSERT INTO dbo._CronLogins (Dtm, Actor, Description) 
-      VALUES (GETUTCDATE(), 'CronTest', @description)
-    `;
-    
-    // Determine environment context for database logging
-    const stage = process.env.STAGE || 'unknown';
-    const environmentContext = isLocal 
-      ? 'local-dev' 
-      : `deployed-${stage}`;
-    
-    const insertRequest = pool.request();
-    insertRequest.input('description', sql.VarChar, `cron job started at ${easternTimeString} from ${environmentContext} environment`);
-    await insertRequest.query(insertQuery);
-    
-    console.log('Successfully inserted record into _CronLogins table');
-    
-    // Count records in _CronLogins table
-    const countQuery = 'SELECT COUNT(1) as recordCount FROM dbo._CronLogins';
-    const countResult = await pool.request().query(countQuery);
-    const recordCount = countResult.recordset[0].recordCount;
-    
-    console.log(`Total records in _CronLogins table: ${recordCount}`);
-    
-    // Close connection
-    await pool.close();
-    
-    console.log('Cron job completed successfully');
+    // Log cron execution using the new shared function
+    await logCronExecution(easternTimeString, environment);
+    console.log(`Successfully logged cron execution for ${process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.CRON_JOB_NAME }`);
     
     // Get headline
     console.log('Starting Hacker News top story scraping...');
     const topStory = await scrapeHackerNewsTopStory();
     console.log('Hacker News top story scraping completed');
     
-    // Send success notification (skip in local environment)
-    if (!isLocal) {
-      const successMessage = `Test cron job completed successfully!
-
-Details:
-- Job started at: ${easternTimeString} ET
-- Database connection: Successful
-- Record inserted: Yes
-- Total records in _CronLogins table: ${recordCount}
-- Stage: ${process.env.STAGE}
-- Job name: ${process.env.CRON_JOB_NAME}
-
-Today's top Hacker News story is: ${topStory}
-
-This is a test of the cron notification system.`;
-
-      await sns.send(new PublishCommand({
-        TopicArn: Resource.CronSuccessNotificationTopic.arn,
-        Subject: "Test of cron SUCCESS notification",
-        Message: successMessage,
-      }));
-      
-      console.log('Success notification sent');
-    } else {
-      console.log('🔄 Skipping SNS success notification (local environment)');
-    }
+    // Send success notification using shared module
+    await sendCronSuccessNotification({
+      jobName: 'test-cron',
+      stage: process.env.STAGE || 'unknown',
+      startTime: easternTimeString,
+      environment,
+      additionalInfo: {
+        'Database connection': 'Successful',
+        'Record inserted': 'Yes',
+        'Top Hacker News story': topStory
+      }
+    });
     
     return {
       statusCode: 200,
       body: JSON.stringify({
         message: 'Cron job completed successfully',
-        recordCount: recordCount,
         startTime: easternTimeString,
         topStory: topStory,
-        environment: isLocal ? 'local' : 'lambda'
+        environment
       })
     };
     
   } catch (error) {
     console.error('Error in cron job:', error);
     
-    // Send error notification (skip in local environment)
-    if (!isLocal) {
-      const errorMessage = `Test cron job failed with error!
-
-Details:
-- Job started at: ${easternTimeString} ET
-- Stage: ${process.env.STAGE}
-- Job name: ${process.env.CRON_JOB_NAME}
-- Error: ${error instanceof Error ? error.message : String(error)}
-- Stack trace: ${error instanceof Error ? error.stack : 'N/A'}
-
-This is a test of the cron error notification system.`;
-
-      try {
-        await sns.send(new PublishCommand({
-          TopicArn: Resource.CronErrorNotificationTopic.arn,
-          Subject: "Test of cron ERROR notification",
-          Message: errorMessage,
-        }));
-        console.log('Error notification sent');
-      } catch (notificationError) {
-        console.error('Failed to send error notification:', notificationError);
-      }
-    } else {
-      console.log('🔄 Skipping SNS error notification (local environment)');
-    }
+    // Send error notification using shared module
+    await sendCronErrorNotification({
+      jobName: 'test-cron',
+      stage: process.env.STAGE || 'unknown',
+      startTime: easternTimeString,
+      environment,
+      error: error instanceof Error ? error : new Error(String(error))
+    });
     
     throw error;
   }

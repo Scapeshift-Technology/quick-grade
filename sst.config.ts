@@ -7,6 +7,7 @@
 // AWS EventBridge format: minute hour day-of-month month day-of-week year
 const commonSchedules = {
   testCron: "0 15 * * ? *",
+  uploadMLBPlayerTeamHistory: "0 19 * * ? *", // Daily at noon ET (4pm UTC)
   // Future ESPN and Steamer schedules (kept for reference)
   // espnScrapers: "0 12,0 * * ? *", // 8am and 8pm ET = 12pm and 12am UTC (EDT offset)
   // steamerUpload: "30 12 * * ? *", // 8:30am ET = 12:30pm UTC (EDT offset)
@@ -32,6 +33,10 @@ const getActiveSeasonForLeagues = (leagues: string[]) => {
 const baseCronConfig = {
   testCron: {
     schedule: commonSchedules.testCron,
+    enabled: true
+  },
+  uploadMLBPlayerTeamHistory: {
+    schedule: commonSchedules.uploadMLBPlayerTeamHistory,
     enabled: true
   },
   // Future ESPN and Steamer configurations (commented out for now)
@@ -112,6 +117,9 @@ export default $config({
     // Create database connection secret for cron test
     const DATABASE_CONNECTION_STRING_CRON_TEST = new sst.Secret("DATABASE_CONNECTION_STRING_CRON_TEST");
     
+    // Create database connection secret for persister (shared by new cron functions)
+    const DATABASE_CONNECTION_STRING_PERSISTER = new sst.Secret("DATABASE_CONNECTION_STRING_PERSISTER");
+    
     // Create proxy secrets for cron test
     const PROXY_USER = new sst.Secret("PROXY_USER");
     const PROXY_PASS = new sst.Secret("PROXY_PASS");
@@ -179,11 +187,12 @@ export default $config({
         timeout: "1 minutes",
         memory: "8192 MB",
         link: [
+          DATABASE_CONNECTION_STRING_PERSISTER,
           cronErrorNotificationTopic,
           cronSuccessNotificationTopic,
-          // PROXY_USER: PROXY_USER.value, // Temporarily commented out
-          // PROXY_PASS: PROXY_PASS.value, // Temporarily commented out
-          // PROXY_HOST_PORT: PROXY_HOST_PORT.value // Temporarily commented out
+          PROXY_USER,
+          PROXY_PASS,
+          PROXY_HOST_PORT
         ],
         environment: {
           NODE_ENV: $app.stage === "prod" ? "production" : "development",
@@ -191,9 +200,38 @@ export default $config({
           CRON_JOB_NAME: "test-cron",
           DEBUG: "pw:api",
           DATABASE_CONNECTION_STRING: DATABASE_CONNECTION_STRING_CRON_TEST.value,
-          // PROXY_USER: PROXY_USER.value, // Temporarily commented out
-          // PROXY_PASS: PROXY_PASS.value, // Temporarily commented out
-          // PROXY_HOST_PORT: PROXY_HOST_PORT.value // Temporarily commented out
+          PROXY_USER: PROXY_USER.value,
+          PROXY_PASS: PROXY_PASS.value,
+          PROXY_HOST_PORT: PROXY_HOST_PORT.value
+        },
+      },
+    });
+    
+    // MLB Player Team History Upload Cron Job
+    const uploadMLBPlayerTeamHistoryCron = new sst.aws.Cron("UploadMLBPlayerTeamHistoryCron", {
+      schedule: `cron(${config.uploadMLBPlayerTeamHistory.schedule})`,
+      job: {
+        handler: "functions/cron/uploadMLBPlayerTeamHistory/handler.handler",
+        architecture: "arm64",
+        nodejs: {
+          format: "cjs",
+          esbuild: {
+            target: "node20",
+            format: "cjs",
+            platform: "node"
+          }
+        },
+        timeout: "5 minutes",
+        memory: "1024 MB",
+        link: [
+          DATABASE_CONNECTION_STRING_PERSISTER,
+          cronErrorNotificationTopic,
+          cronSuccessNotificationTopic,
+        ],
+        environment: {
+          NODE_ENV: $app.stage === "prod" ? "production" : "development",
+          STAGE: $app.stage,
+          CRON_JOB_NAME: "upload-mlb-player-team-history",
         },
       },
     });
@@ -235,6 +273,7 @@ export default $config({
       webhookUrl: webhook.url,
       messageQueueUrl: messageQueue.url,
       testCronSchedule: config.testCron.schedule,
+      uploadMLBPlayerTeamHistorySchedule: config.uploadMLBPlayerTeamHistory.schedule,
       cronErrorTopicArn: cronErrorNotificationTopic.arn,
       cronSuccessTopicArn: cronSuccessNotificationTopic.arn,
       // Future outputs (commented out for now)
