@@ -123,6 +123,9 @@ function processTransactions(
   const teamHistoryRecords: TeamHistoryRecord[] = [];
   const validTeamIds = new Set(validTeamIdsCsv.split(',').map(id => parseInt(id, 10)));
 
+  // First pass: collect all valid transactions
+  const candidateRecords: Array<TeamHistoryRecord & { transactionId: number }> = [];
+
   for (const transaction of transactions) {
     // Skip transactions without a player
     if (!transaction.person?.id) {
@@ -151,22 +154,56 @@ function processTransactions(
       continue;
     }
     
+    // Skip transactions without an ID (needed for deduplication)
+    if (!transaction.id) {
+      console.warn(`Transaction missing ID for player ${transaction.person.id}`);
+      continue;
+    }
+    
     // Truncate description if too long
     let description = transaction.description || '';
     if (description.length > 255) {
       description = description.substring(0, 255);
     }
     
-    teamHistoryRecords.push({
+    candidateRecords.push({
       MLBPlayer: transaction.person.id,
       Date: transactionDate,
       MLBTeam: transaction.toTeam.id,
-      Description: description
+      Description: description,
+      transactionId: transaction.id
     });
   }
+
+  // Second pass: deduplicate by (MLBPlayer, Date, MLBTeam) keeping the transaction with highest ID
+  const deduplicationMap = new Map<string, typeof candidateRecords[0]>();
   
-  console.log(`Processed ${teamHistoryRecords.length} valid team history records from ${transactions.length} transactions`);
-  return teamHistoryRecords;
+  for (const record of candidateRecords) {
+    const key = `${record.MLBPlayer}-${record.Date.toISOString().split('T')[0]}-${record.MLBTeam}`;
+    const existing = deduplicationMap.get(key);
+    
+    if (!existing || record.transactionId > existing.transactionId) {
+      // Keep this record (either first occurrence or has higher transaction ID)
+      deduplicationMap.set(key, record);
+    }
+    // Otherwise discard this record (has lower transaction ID)
+  }
+  
+  // Convert back to TeamHistoryRecord[] (removing transactionId)
+  const finalRecords = Array.from(deduplicationMap.values()).map(record => ({
+    MLBPlayer: record.MLBPlayer,
+    Date: record.Date,
+    MLBTeam: record.MLBTeam,
+    Description: record.Description
+  }));
+  
+  const duplicatesRemoved = candidateRecords.length - finalRecords.length;
+  if (duplicatesRemoved > 0) {
+    console.log(`Deduplication: ${candidateRecords.length} -> ${finalRecords.length} records (removed ${duplicatesRemoved} duplicates based on highest transaction ID)`);
+  }
+  
+  console.log(`Processed ${finalRecords.length} valid team history records from ${transactions.length} transactions`);
+  return finalRecords;
 }
 
 export const handler = async (event: MLBUploadEvent) => {
@@ -323,28 +360,59 @@ export const handler = async (event: MLBUploadEvent) => {
 // This allows the handler to be run directly with Node.js for debugging
 if (require.main === module) {
   console.log('🚀 Running uploadMLBPlayerTeamHistory handler locally...');
+  console.log('=' .repeat(60));
+  
+  // Read custom dates from environment variables if provided
+  const startDate = process.env.START_DATE;
+  const endDate = process.env.END_DATE;
+  
+  console.log('🔧 Debug Configuration:');
+  console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+  console.log(`   START_DATE: ${startDate || 'not set (will use yesterday)'}`);
+  console.log(`   END_DATE: ${endDate || 'not set (will use tomorrow)'}`);
+  console.log(`   STAGE: ${process.env.STAGE || 'not set'}`);
+  console.log('');
   
   // Create a mock event for local testing
   const mockEvent: MLBUploadEvent = {
     version: '0',
-    id: 'local-test-event',
+    id: `local-debug-${Date.now()}`,
     'detail-type': 'Scheduled Event',
-    source: 'aws.events',
+    source: 'local.debug',
     account: 'local',
     time: new Date().toISOString(),
     region: 'us-east-1',
     detail: {},
-    resources: []
+    resources: [],
+    // Include custom dates in the event if provided
+    ...(startDate && { startDate }),
+    ...(endDate && { endDate })
   };
+  
+  console.log('📅 Mock Event:');
+  console.log(JSON.stringify(mockEvent, null, 2));
+  console.log('');
+  console.log('🎯 Starting handler execution...');
+  console.log('');
   
   // Run the handler
   handler(mockEvent)
     .then((result) => {
-      console.log('✅ Handler completed successfully:', result);
+      console.log('');
+      console.log('=' .repeat(60));
+      console.log('✅ Handler completed successfully!');
+      console.log('📊 Result:');
+      console.log(JSON.stringify(result, null, 2));
       process.exit(0);
     })
     .catch((error) => {
-      console.error('❌ Handler failed:', error);
+      console.log('');
+      console.log('=' .repeat(60));
+      console.error('❌ Handler failed with error:');
+      console.error(error);
+      if (error instanceof Error) {
+        console.error('Error stack:', error.stack);
+      }
       process.exit(1);
     });
 } 

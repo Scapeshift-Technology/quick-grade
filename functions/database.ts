@@ -212,34 +212,54 @@ export async function bulkInsertTeamHistory(records: TeamHistoryRecord[]): Promi
   try {
     pool = await createDatabaseConnection('persister');
     
-    console.log(`Inserting ${records.length} team history records`);
+    console.log(`Inserting ${records.length} team history records using batch processing`);
     
-    // Use individual merge operations in a transaction for better compatibility
+    // Process records in chunks to avoid SQL Server parameter limits (2100 parameters max)
+    // Each record has 4 parameters, so use chunks of 500 records (2000 parameters)
+    const CHUNK_SIZE = 500;
+    let totalProcessed = 0;
+    
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
     
     try {
-      for (const record of records) {
+      for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+        const chunk = records.slice(i, i + CHUNK_SIZE);
+        
+        // Build the VALUES clause for this chunk
+        const valuesClause = chunk.map((_, index) => {
+          return `(@MLBPlayer${index}, @Date${index}, @MLBTeam${index}, @Description${index})`;
+        }).join(', ');
+        
         const request = new sql.Request(transaction);
-        await request
-          .input('MLBPlayer', sql.Int, record.MLBPlayer)
-          .input('Date', sql.Date, record.Date)
-          .input('MLBTeam', sql.SmallInt, record.MLBTeam)
-          .input('Description', sql.VarChar(255), record.Description)
-          .query(`
-            MERGE MLBPlayer_TeamHistory AS target
-            USING (VALUES (@MLBPlayer, @Date, @MLBTeam, @Description)) AS source (MLBPlayer, Date, MLBTeam, Description)
-            ON target.MLBPlayer = source.MLBPlayer AND target.Date = source.Date
-            WHEN MATCHED THEN
-              UPDATE SET MLBTeam = source.MLBTeam, Description = source.Description
-            WHEN NOT MATCHED THEN
-              INSERT (MLBPlayer, Date, MLBTeam, Description)
-              VALUES (source.MLBPlayer, source.Date, source.MLBTeam, source.Description);
-          `);
+        
+        // Add input parameters for this chunk
+        chunk.forEach((record, index) => {
+          request.input(`MLBPlayer${index}`, sql.Int, record.MLBPlayer);
+          request.input(`Date${index}`, sql.Date, record.Date);
+          request.input(`MLBTeam${index}`, sql.SmallInt, record.MLBTeam);
+          request.input(`Description${index}`, sql.VarChar(255), record.Description);
+        });
+        
+        const mergeQuery = `
+          MERGE MLBPlayer_TeamHistory AS target
+          USING (VALUES ${valuesClause}) AS source (MLBPlayer, Date, MLBTeam, Description)
+          ON target.MLBPlayer = source.MLBPlayer AND target.Date = source.Date
+          WHEN MATCHED THEN
+            UPDATE SET MLBTeam = source.MLBTeam, Description = source.Description
+          WHEN NOT MATCHED THEN
+            INSERT (MLBPlayer, Date, MLBTeam, Description)
+            VALUES (source.MLBPlayer, source.Date, source.MLBTeam, source.Description);
+        `;
+        
+        await request.query(mergeQuery);
+        totalProcessed += chunk.length;
+        
+        console.log(`Processed chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${chunk.length} records (${totalProcessed}/${records.length} total)`);
       }
       
       await transaction.commit();
-      console.log(`Successfully inserted/updated ${records.length} team history records`);
+      console.log(`Successfully inserted/updated ${records.length} team history records using batched MERGE statements`);
       
     } catch (error) {
       await transaction.rollback();
