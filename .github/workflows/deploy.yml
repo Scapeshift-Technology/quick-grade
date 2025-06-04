@@ -24,12 +24,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      
-      - name: Clean and install all dependencies
-        run: |
-          echo "Running fresh CI install for CI/CD environment..."
-          npm run ci-install
-      
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -40,11 +35,16 @@ jobs:
         run: |
           echo "Verifying AWS access..."
           aws sts get-caller-identity
-      
-      - name: Run tests with SST resources
+
+      - name: Clean and install all dependencies
         run: |
-          echo "Running tests with SST shell to access linked resources..."
-          npx sst shell --print-logs -- npm test
+          echo "Running fresh CI install for CI/CD environment..."
+          npm run ci-install
+
+      - name: Run tests
+        run: |
+          echo "Running tests..."
+          npm test
       
       - name: Deploy to production
         id: deploy
@@ -54,7 +54,7 @@ jobs:
           npx sst deploy --stage prod
         env:
           NODE_ENV: production
-          
+      
       - name: Log deployment information
         run: |
           echo "🚀 Production deployment completed successfully!"

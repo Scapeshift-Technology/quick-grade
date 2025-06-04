@@ -1,6 +1,5 @@
 # sst
 .sst
-sst-env.d.ts
 resource.enc
 
 # Node.js dependencies
