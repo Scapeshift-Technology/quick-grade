@@ -30,14 +30,6 @@ jobs:
           echo "Running fresh CI install for CI/CD environment..."
           npm run ci-install
       
-      - name: Generate SST types for tests
-        run: |
-          echo "Generating SST type definitions..."
-          npx sst diff --stage prod
-      
-      - name: Run tests
-        run: npx jest --clearCache && npm test
-      
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -48,8 +40,15 @@ jobs:
         run: |
           echo "Verifying AWS access..."
           aws sts get-caller-identity
-          
-
+      
+      - name: Generate SST types for tests
+        run: |
+          echo "Generating SST type definitions..."
+          npx sst diff --stage prod
+      
+      - name: Run tests
+        run: npx jest --clearCache && npm test
+      
       - name: Deploy to production
         id: deploy
         run: |
