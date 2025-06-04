@@ -114,10 +114,7 @@ export default $config({
     const TELEGRAM_BOT_TOKEN = new sst.Secret("TELEGRAM_BOT_TOKEN");
     const DATABASE_CONNECTION_STRING_TELEGRAM_BOT = new sst.Secret("DATABASE_CONNECTION_STRING_TELEGRAM_BOT");
     
-    // Create database connection secret for cron test
-    const DATABASE_CONNECTION_STRING_CRON_TEST = new sst.Secret("DATABASE_CONNECTION_STRING_CRON_TEST");
-    
-    // Create database connection secret for persister (shared by new cron functions)
+    // Create database connection secret for persister (shared by cron functions)
     const DATABASE_CONNECTION_STRING_PERSISTER = new sst.Secret("DATABASE_CONNECTION_STRING_PERSISTER");
     
     // Create proxy secrets for cron test
@@ -199,7 +196,6 @@ export default $config({
           STAGE: $app.stage,
           CRON_JOB_NAME: "test-cron",
           DEBUG: "pw:api",
-          DATABASE_CONNECTION_STRING: DATABASE_CONNECTION_STRING_CRON_TEST.value,
           PROXY_USER: PROXY_USER.value,
           PROXY_PASS: PROXY_PASS.value,
           PROXY_HOST_PORT: PROXY_HOST_PORT.value
