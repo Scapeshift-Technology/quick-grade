@@ -106,7 +106,7 @@ describe('Database Registration', () => {
       expect(result.message).toBe('Registration successful! Welcome testuser');
       
       // Verify database calls
-      expect(mockConnect).toHaveBeenCalledWith('Driver={ODBC Driver 18 for SQL Server};Server=tcp:test-server.database.windows.net,1433;Database=test-database;Uid=test-user;Pwd=test-password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;');
+      expect(mockConnect).toHaveBeenCalledWith('mock-telegram-bot-db-connection-string');
       expect(mockPool.request).toHaveBeenCalled();
       expect(mockRequest.input).toHaveBeenCalledWith('Party', { type: 'char', size: 32 }, 'testuser');
       expect(mockRequest.input).toHaveBeenCalledWith('Token', { type: 'char', size: 32 }, 'testtoken');

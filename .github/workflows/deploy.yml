@@ -30,6 +30,11 @@ jobs:
           echo "Running fresh CI install for CI/CD environment..."
           npm run ci-install
       
+      - name: Generate SST types for tests
+        run: |
+          echo "Generating SST type definitions..."
+          npx sst build
+      
       - name: Run tests
         run: npx jest --clearCache && npm test
       
