@@ -44,7 +44,7 @@ jobs:
       - name: Generate SST types for tests
         run: |
           echo "Generating SST type definitions..."
-          npx sst diff --stage prod
+          npx sst install
       
       - name: Run tests
         run: npx jest --clearCache && npm test
