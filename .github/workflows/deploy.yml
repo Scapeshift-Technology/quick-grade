@@ -41,13 +41,10 @@ jobs:
           echo "Verifying AWS access..."
           aws sts get-caller-identity
       
-      - name: Generate SST types for tests
+      - name: Run tests with SST resources
         run: |
-          echo "Generating SST type definitions..."
-          npx sst install
-      
-      - name: Run tests
-        run: npx jest --clearCache && npm test
+          echo "Running tests with SST shell to access linked resources..."
+          npx sst shell -- npm test
       
       - name: Deploy to production
         id: deploy
