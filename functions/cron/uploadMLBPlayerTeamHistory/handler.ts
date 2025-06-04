@@ -279,7 +279,9 @@ export const handler = async (event: MLBUploadEvent) => {
           'Date range': `${startDate} to ${endDate}`,
           'Transactions found': 0,
           'Records processed': 0,
-          'Records inserted': 0
+          'Records inserted': 0,
+          'Records updated': 0,
+          'Total DB operations': 0
         }
       });
       
@@ -292,6 +294,8 @@ export const handler = async (event: MLBUploadEvent) => {
           transactionsFound: 0,
           recordsProcessed: 0,
           recordsInserted: 0,
+          recordsUpdated: 0,
+          totalDbOperations: 0,
           environment
         })
       };
@@ -302,9 +306,10 @@ export const handler = async (event: MLBUploadEvent) => {
     const teamHistoryRecords = processTransactions(apiResponse.transactions, validPlayers, validTeamsCsv);
     
     // Step 5: Insert records into database
+    let insertStats = { inserted: 0, updated: 0, total: 0 };
     if (teamHistoryRecords.length > 0) {
       console.log('Inserting team history records into database...');
-      await bulkInsertTeamHistory(teamHistoryRecords);
+      insertStats = await bulkInsertTeamHistory(teamHistoryRecords);
     } else {
       console.log('No valid team history records to insert');
     }
@@ -319,7 +324,9 @@ export const handler = async (event: MLBUploadEvent) => {
         'Date range': `${startDate} to ${endDate}`,
         'Transactions found': apiResponse.transactions.length,
         'Records processed': teamHistoryRecords.length,
-        'Records inserted': teamHistoryRecords.length,
+        'Records inserted': insertStats.inserted,
+        'Records updated': insertStats.updated,
+        'Total DB operations': insertStats.total,
         'Valid teams': validTeamsCsv.split(',').length,
         'Valid players': validPlayers.size
       }
@@ -335,7 +342,9 @@ export const handler = async (event: MLBUploadEvent) => {
         endDate,
         transactionsFound: apiResponse.transactions.length,
         recordsProcessed: teamHistoryRecords.length,
-        recordsInserted: teamHistoryRecords.length,
+        recordsInserted: insertStats.inserted,
+        recordsUpdated: insertStats.updated,
+        totalDbOperations: insertStats.total,
         environment
       })
     };

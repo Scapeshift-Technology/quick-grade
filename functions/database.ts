@@ -201,10 +201,10 @@ export async function fetchValidMLBPlayers(): Promise<Set<number>> {
 /**
  * Bulk insert team history records into the database using MERGE for upsert behavior
  */
-export async function bulkInsertTeamHistory(records: TeamHistoryRecord[]): Promise<void> {
+export async function bulkInsertTeamHistory(records: TeamHistoryRecord[]): Promise<{ inserted: number; updated: number; total: number }> {
   if (!records.length) {
     console.log('No team history records to insert');
-    return;
+    return { inserted: 0, updated: 0, total: 0 };
   }
 
   let pool: sql.ConnectionPool | undefined;
@@ -217,7 +217,8 @@ export async function bulkInsertTeamHistory(records: TeamHistoryRecord[]): Promi
     // Process records in chunks to avoid SQL Server parameter limits (2100 parameters max)
     // Each record has 4 parameters, so use chunks of 500 records (2000 parameters)
     const CHUNK_SIZE = 500;
-    let totalProcessed = 0;
+    let totalInserted = 0;
+    let totalUpdated = 0;
     
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
@@ -241,6 +242,7 @@ export async function bulkInsertTeamHistory(records: TeamHistoryRecord[]): Promi
           request.input(`Description${index}`, sql.VarChar(255), record.Description);
         });
         
+        // Use OUTPUT clause to capture insert/update statistics
         const mergeQuery = `
           MERGE MLBPlayer_TeamHistory AS target
           USING (VALUES ${valuesClause}) AS source (MLBPlayer, Date, MLBTeam, Description)
@@ -249,17 +251,40 @@ export async function bulkInsertTeamHistory(records: TeamHistoryRecord[]): Promi
             UPDATE SET MLBTeam = source.MLBTeam, Description = source.Description
           WHEN NOT MATCHED THEN
             INSERT (MLBPlayer, Date, MLBTeam, Description)
-            VALUES (source.MLBPlayer, source.Date, source.MLBTeam, source.Description);
+            VALUES (source.MLBPlayer, source.Date, source.MLBTeam, source.Description)
+          OUTPUT $action;
         `;
         
-        await request.query(mergeQuery);
-        totalProcessed += chunk.length;
+        const result = await request.query(mergeQuery);
         
-        console.log(`Processed chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${chunk.length} records (${totalProcessed}/${records.length} total)`);
+        // Count the actions from the OUTPUT
+        let chunkInserted = 0;
+        let chunkUpdated = 0;
+        
+        result.recordset.forEach(row => {
+          if (row.$action === 'INSERT') {  // The OUTPUT $action column name is empty string
+            chunkInserted++;
+          } else if (row.$action === 'UPDATE') {
+            chunkUpdated++;
+          }
+        });
+        
+        totalInserted += chunkInserted;
+        totalUpdated += chunkUpdated;
+        
+        console.log(`Processed chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${chunk.length} records (${chunkInserted} inserted, ${chunkUpdated} updated)`);
       }
       
       await transaction.commit();
-      console.log(`Successfully inserted/updated ${records.length} team history records using batched MERGE statements`);
+      
+      const totalProcessed = totalInserted + totalUpdated;
+      console.log(`Successfully processed ${records.length} team history records: ${totalInserted} inserted, ${totalUpdated} updated (${totalProcessed} total database operations)`);
+      
+      return {
+        inserted: totalInserted,
+        updated: totalUpdated,
+        total: totalProcessed
+      };
       
     } catch (error) {
       await transaction.rollback();
