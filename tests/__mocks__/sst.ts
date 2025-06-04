@@ -3,6 +3,9 @@ export const Resource = {
     value: 'test-bot-token'
   },
   DATABASE_CONNECTION_STRING_TELEGRAM_BOT: {
-    value: 'Driver={ODBC Driver 18 for SQL Server};Server=tcp:test-server.database.windows.net,1433;Database=test-database;Uid=test-user;Pwd=test-password;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;'
+    value: 'mock-telegram-bot-db-connection-string'
+  },
+  DATABASE_CONNECTION_STRING_PERSISTER: {
+    value: 'mock-persister-db-connection-string'
   }
 };
