@@ -28,7 +28,7 @@ jobs:
       - name: Clean and install all dependencies
         run: |
           echo "Running fresh CI install for CI/CD environment..."
-          npm run fresh-ci-install
+          npm run ci-install
       
       - name: Run tests
         run: npm test
