@@ -44,7 +44,7 @@ jobs:
       - name: Run tests with SST resources
         run: |
           echo "Running tests with SST shell to access linked resources..."
-          npx sst shell -- npm test
+          npx sst shell --print-logs -- npm test
       
       - name: Deploy to production
         id: deploy
