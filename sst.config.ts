@@ -171,7 +171,7 @@ export default $config({
     
     // Test Cron Job - Simple database connectivity test
     const testCron = new sst.aws.Cron("TestCron", {
-      schedule: `cron(${config.testCron.schedule})`,
+      schedule: stage === 'prod' ? `cron(${config.testCron.schedule})` : 'cron(0 0 30 2 ? *)',
       job: {
         handler: "functions/cron/testCron/handler.handler",
         architecture: "arm64",
@@ -209,7 +209,7 @@ export default $config({
     
     // MLB Player Team History Upload Cron Job
     const uploadMLBPlayerTeamHistoryCron = new sst.aws.Cron("UploadMLBPlayerTeamHistoryCron", {
-      schedule: `cron(${config.uploadMLBPlayerTeamHistory.schedule})`,
+      schedule: stage === 'prod' ? `cron(${config.uploadMLBPlayerTeamHistory.schedule})` : 'cron(0 0 30 2 ? *)',
       job: {
         handler: "functions/cron/uploadMLBPlayerTeamHistory/handler.handler",
         architecture: "arm64",
